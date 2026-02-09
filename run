@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmd="${1:-help}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+  build)
+    go build ./...
+    ;;
+  test)
+    go test ./... -v -count=1
+    ;;
+  vet)
+    go vet ./...
+    ;;
+  lint)
+    go vet ./...
+    echo "lint passed"
+    ;;
+  clean)
+    go clean ./...
+    ;;
+  demo)
+    go run ./cmd/demo
+    ;;
+  bench)
+    go test ./... -bench=. -benchmem -count=3
+    ;;
+  shake)
+    file="" paths="" mode=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        -file)   file="$2";   shift 2 ;;
+        -paths)  paths="$2";  shift 2 ;;
+        -mode)   mode="$2";   shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 1 ;;
+      esac
+    done
+    [[ -z "$file" || -z "$paths" ]] && {
+      echo "usage: ./run shake -file input.json -paths '\$.name,\$.email' [-mode exclude]" >&2
+      exit 1
+    }
+    args=(-paths "$paths")
+    [[ -n "$mode" ]] && args+=(-mode "$mode")
+    cat "$file" | go run ./cmd/shake "${args[@]}"
+    ;;
+  all)
+    go build ./...
+    go vet ./...
+    go test ./... -v -count=1
+    ;;
+  help|*)
+    echo "usage: ./shake.sh <command> [args]"
+    echo ""
+    echo "commands:"
+    echo "  build    go build ./..."
+    echo "  test     go test ./... -v"
+    echo "  vet      go vet ./..."
+    echo "  lint     vet + lint passed"
+    echo "  clean    go clean ./..."
+    echo "  demo     run demo cmd"
+    echo "  bench    benchmarks with -benchmem"
+    echo "  shake    run shaker (see below)"
+    echo "  all      build + vet + test"
+    echo ""
+    echo "shake usage:"
+    echo "  ./run shake -file input.json -paths '\$.foo,\$.bar' [-mode exclude]"
+    ;;
+esac
