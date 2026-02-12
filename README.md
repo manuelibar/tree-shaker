@@ -33,8 +33,6 @@ import (
 )
 
 func main() {
-    s := shaker.New()
-
     input := []byte(`{
         "name": "John",
         "email": "john@example.com",
@@ -43,7 +41,7 @@ func main() {
     }`)
 
     // Include: keep only what you ask for (everything else removed)
-    out, err := s.Shake(input, shaker.Include("$.name", "$.email"))
+    out, err := shaker.Shake(input, shaker.Include("$.name", "$.email"))
     if err != nil {
         log.Fatal(err)
     }
@@ -51,7 +49,7 @@ func main() {
     // {"email":"john@example.com","name":"John"}
 
     // Exclude: remove what you specify (everything else kept)
-    out, err = s.Shake(input, shaker.Exclude("$.password"))
+    out, err = shaker.Shake(input, shaker.Exclude("$.password"))
     if err != nil {
         log.Fatal(err)
     }
@@ -67,16 +65,14 @@ func main() {
 ### Direct
 
 ```go
-s := shaker.New()
-
 // Include mode (GraphQL-like): specify what you want
-out, err := s.Shake(json, shaker.Include("$.name", "$.email"))
+out, err := shaker.Shake(json, shaker.Include("$.name", "$.email"))
 
 // Exclude mode: specify what to remove
-out, err := s.Shake(json, shaker.Exclude("$.password", "$..secret"))
+out, err := shaker.Shake(json, shaker.Exclude("$.password", "$..secret"))
 
 // MustShake panics on error — useful in tests
-out := s.MustShake(json, shaker.Include("$.name"))
+out := shaker.MustShake(json, shaker.Include("$.name"))
 ```
 
 ### WithPrefix
@@ -85,7 +81,7 @@ Scope all paths under a common root. Relative paths (starting with `.`) are appe
 
 ```go
 q := shaker.Exclude(".password", ".secret").WithPrefix("$.data")
-out, err := s.Shake(json, q)
+out, err := shaker.Shake(json, q)
 ```
 
 ### Pre-compiled Query
@@ -99,7 +95,7 @@ if err != nil {
 }
 
 for _, doc := range documents {
-    out, _ := s.Shake(doc, q)
+    out, _ := shaker.Shake(doc, q)
     // ...
 }
 ```
@@ -110,21 +106,19 @@ Type-safe builder that prevents mixing Include and Exclude at compile time:
 
 ```go
 // Include
-out, err := shaker.New().
-    From(json).
+out, err := shaker.From(json).
     Prefix("$.data").
     Include(".name", ".email").
     Include(".age").                // adds to same include set
     Shake()
 
 // Exclude
-out, err := shaker.New().
-    From(json).
+out, err := shaker.From(json).
     Exclude(".password").
     Shake()
 
 // WON'T COMPILE — type system enforces mutual exclusivity:
-// shaker.New().From(json).Include(".x").Exclude(".y")
+// shaker.From(json).Include(".x").Exclude(".y")
 ```
 
 ### ShakeRequest (wire format)
@@ -144,7 +138,7 @@ if err != nil {
     return err
 }
 
-out, err := shaker.New().Shake(payload, q)
+out, err := shaker.Shake(payload, q)
 ```
 
 `ToQuery()` returns an error if:
@@ -156,9 +150,8 @@ out, err := shaker.New().Shake(payload, q)
 Output of one Shake feeds into the next:
 
 ```go
-s := shaker.New()
-out1, _ := s.Shake(json, shaker.Exclude("$.password"))
-out2, _ := s.Shake(out1, shaker.Include("$.name", "$.age"))
+out1, _ := shaker.Shake(json, shaker.Exclude("$.password"))
+out2, _ := shaker.Shake(out1, shaker.Include("$.name", "$.age"))
 ```
 
 ### Error Handling
@@ -166,7 +159,7 @@ out2, _ := s.Shake(out1, shaker.Include("$.name", "$.age"))
 All invalid paths are reported in a single error via `errors.Join`. No partial application — if any path is invalid, the entire operation fails:
 
 ```go
-out, err := s.Shake(json, shaker.Include("$.invalid[", "$[bad", "$.valid"))
+out, err := shaker.Shake(json, shaker.Include("$.invalid[", "$[bad", "$.valid"))
 // err contains 2 joined ParseErrors; valid paths are NOT applied partially
 
 var pe *shaker.ParseError
@@ -216,8 +209,6 @@ type APIRequest struct {
 }
 
 func shakeMiddleware(next http.Handler) http.Handler {
-    s := shaker.New()
-
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         req := r.Context().Value(requestKey).(*APIRequest)
         if req.Shake == nil {
@@ -234,7 +225,7 @@ func shakeMiddleware(next http.Handler) http.Handler {
         rec := httptest.NewRecorder()
         next.ServeHTTP(rec, r)
 
-        result, err := s.Shake(rec.Body.Bytes(), q)
+        result, err := shaker.Shake(rec.Body.Bytes(), q)
         if err != nil {
             http.Error(w, err.Error(), http.StatusBadRequest)
             return
@@ -297,7 +288,7 @@ type Meta struct {
     Shake         *shaker.ShakeRequest `json:"shake,omitempty"`
 }
 
-func handleToolCall(s *shaker.Shaker, params CallToolParams) (json.RawMessage, error) {
+func handleToolCall(params CallToolParams) (json.RawMessage, error) {
     result, err := executeTool(params.Name, params.Arguments)
     if err != nil {
         return nil, err
@@ -308,7 +299,7 @@ func handleToolCall(s *shaker.Shaker, params CallToolParams) (json.RawMessage, e
         if err != nil {
             return nil, fmt.Errorf("invalid shake hint: %w", err)
         }
-        result, err = s.Shake(result, q)
+        result, err = shaker.Shake(result, q)
         if err != nil {
             return nil, err
         }
@@ -378,14 +369,14 @@ func init() {
     }
 }
 
-func handleToolCall(s *shaker.Shaker, params CallToolParams) (json.RawMessage, error) {
+func handleToolCall(params CallToolParams) (json.RawMessage, error) {
     result, err := executeTool(params.Name, params.Arguments)
     if err != nil {
         return nil, err
     }
 
     // 1. Server policy: always strip sensitive fields
-    result, err = s.Shake(result, serverPolicy)
+    result, err = shaker.Shake(result, serverPolicy)
     if err != nil {
         return nil, err
     }
@@ -396,7 +387,7 @@ func handleToolCall(s *shaker.Shaker, params CallToolParams) (json.RawMessage, e
         if err != nil {
             return nil, fmt.Errorf("invalid shake hint: %w", err)
         }
-        result, err = s.Shake(result, q)
+        result, err = shaker.Shake(result, q)
         if err != nil {
             return nil, err
         }
@@ -454,7 +445,7 @@ func parseShakeFromQuery(r *http.Request) (*shaker.ShakeRequest, bool) {
 
 | File | Package | Responsibility | Key Types |
 |------|---------|---------------|-----------|
-| `pkg/shaker/shaker.go` | `shaker` | Entry point: unmarshal, walk, marshal | `Shaker` |
+| `pkg/shaker/shaker.go` | `shaker` | Entry point: unmarshal, walk, marshal | `Shake`, `MustShake`, `From` |
 | `pkg/shaker/builder.go` | `shaker` | Fluent API with compile-time mode safety | `Builder`, `IncludeBuilder`, `ExcludeBuilder` |
 | `pkg/shaker/exports.go` | `shaker` | Re-exports internal types as public API | type aliases, constants |
 | `pkg/shaker/doc.go` | `shaker` | Package-level godoc | — |

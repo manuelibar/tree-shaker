@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	out, err := shaker.New().Shake(input, q)
+	out, err := shaker.Shake(input, q)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "shake: %v\n", err)
 		os.Exit(1)

@@ -8,7 +8,7 @@ import (
 
 func TestShakeIncludeSingleField(t *testing.T) {
 	input := []byte(`{"name":"John","age":30,"email":"john@example.com"}`)
-	out, err := New().Shake(input, Include("$.name"))
+	out, err := Shake(input, Include("$.name"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestShakeIncludeSingleField(t *testing.T) {
 
 func TestShakeIncludeMultipleFields(t *testing.T) {
 	input := []byte(`{"name":"John","age":30,"email":"john@example.com"}`)
-	out, err := New().Shake(input, Include("$.name", "$.email"))
+	out, err := Shake(input, Include("$.name", "$.email"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestShakeIncludeMultipleFields(t *testing.T) {
 
 func TestShakeExcludePassword(t *testing.T) {
 	input := []byte(`{"name":"John","password":"secret","email":"john@example.com"}`)
-	out, err := New().Shake(input, Exclude("$.password"))
+	out, err := Shake(input, Exclude("$.password"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestShakeExcludePassword(t *testing.T) {
 
 func TestShakeExcludeRecursiveDescent(t *testing.T) {
 	input := []byte(`{"data":{"name":"John","secret":"x","nested":{"secret":"y","value":1}}}`)
-	out, err := New().Shake(input, Exclude("$..secret"))
+	out, err := Shake(input, Exclude("$..secret"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestShakeExcludeRecursiveDescent(t *testing.T) {
 func TestShakeWithPrefix(t *testing.T) {
 	input := []byte(`{"data":{"name":"John","age":30},"pagination":{"page":1}}`)
 	q := Include(".name").WithPrefix("$.data")
-	out, err := New().Shake(input, q)
+	out, err := Shake(input, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,16 +100,14 @@ func TestShakeWithPrefix(t *testing.T) {
 
 func TestShakeComposability(t *testing.T) {
 	input := []byte(`{"name":"John","password":"secret","age":30,"email":"john@example.com"}`)
-	s := New()
-
 	// First: exclude password
-	out1, err := s.Shake(input, Exclude("$.password"))
+	out1, err := Shake(input, Exclude("$.password"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Second: include only name and age
-	out2, err := s.Shake(out1, Include("$.name", "$.age"))
+	out2, err := Shake(out1, Include("$.name", "$.age"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +127,7 @@ func TestShakeComposability(t *testing.T) {
 
 func TestShakeErrorAggregation(t *testing.T) {
 	input := []byte(`{"name":"John"}`)
-	_, err := New().Shake(input, Include("$.invalid[", "$[bad", "$.valid"))
+	_, err := Shake(input, Include("$.invalid[", "$[bad", "$.valid"))
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -142,14 +140,14 @@ func TestShakeErrorAggregation(t *testing.T) {
 
 func TestShakeNoPartialApplication(t *testing.T) {
 	input := []byte(`{"name":"John","valid":"yes"}`)
-	_, err := New().Shake(input, Include("$.valid", "$.invalid["))
+	_, err := Shake(input, Include("$.valid", "$.invalid["))
 	if err == nil {
 		t.Fatal("expected error — no partial application")
 	}
 }
 
 func TestShakeInvalidJSON(t *testing.T) {
-	_, err := New().Shake([]byte(`{invalid`), Include("$.name"))
+	_, err := Shake([]byte(`{invalid`), Include("$.name"))
 	if err == nil {
 		t.Error("expected error for invalid JSON")
 	}
@@ -157,7 +155,7 @@ func TestShakeInvalidJSON(t *testing.T) {
 
 func TestShakeIncludeNoMatchReturnsEmpty(t *testing.T) {
 	input := []byte(`{"name":"John"}`)
-	out, err := New().Shake(input, Include("$.nonexistent"))
+	out, err := Shake(input, Include("$.nonexistent"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +166,7 @@ func TestShakeIncludeNoMatchReturnsEmpty(t *testing.T) {
 
 func TestShakeExcludeNoMatchReturnsUnchanged(t *testing.T) {
 	input := []byte(`{"name":"John"}`)
-	out, err := New().Shake(input, Exclude("$.nonexistent"))
+	out, err := Shake(input, Exclude("$.nonexistent"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +179,7 @@ func TestShakeExcludeNoMatchReturnsUnchanged(t *testing.T) {
 
 func TestShakeIncludeArrayNoMatch(t *testing.T) {
 	input := []byte(`[1,2,3]`)
-	out, err := New().Shake(input, Include("$.nonexistent"))
+	out, err := Shake(input, Include("$.nonexistent"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,12 +194,12 @@ func TestMustShakePanicsOnError(t *testing.T) {
 			t.Error("expected panic")
 		}
 	}()
-	New().MustShake([]byte(`{invalid`), Include("$.name"))
+	MustShake([]byte(`{invalid`), Include("$.name"))
 }
 
 func TestMustShakeSuccess(t *testing.T) {
 	input := []byte(`{"name":"John","age":30}`)
-	out := New().MustShake(input, Include("$.name"))
+	out := MustShake(input, Include("$.name"))
 	var result map[string]any
 	json.Unmarshal(out, &result)
 	if result["name"] != "John" {
@@ -221,9 +219,8 @@ func TestShakePrecompiledQuery(t *testing.T) {
 		`{"name":"C","email":"c@x.com","age":3}`,
 	}
 
-	s := New()
 	for _, doc := range docs {
-		out, err := s.Shake([]byte(doc), q)
+		out, err := Shake([]byte(doc), q)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +237,7 @@ func TestShakePrecompiledQuery(t *testing.T) {
 
 func TestShakeNestedArrayWildcard(t *testing.T) {
 	input := []byte(`{"users":[{"name":"A","role":"admin"},{"name":"B","role":"user"}]}`)
-	out, err := New().Shake(input, Include("$.users[*].name"))
+	out, err := Shake(input, Include("$.users[*].name"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +262,7 @@ func TestShakeNestedArrayWildcard(t *testing.T) {
 func TestShakeExcludeWithPrefix(t *testing.T) {
 	input := []byte(`{"data":{"name":"John","password":"secret","email":"john@example.com"},"meta":"kept"}`)
 	q := Exclude(".password", ".email").WithPrefix("$.data")
-	out, err := New().Shake(input, q)
+	out, err := Shake(input, q)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +283,7 @@ func TestShakeExcludeWithPrefix(t *testing.T) {
 
 func TestShakeMultiSelector(t *testing.T) {
 	input := []byte(`[10,20,30,40,50]`)
-	out, err := New().Shake(input, Include("$[0,2,4]"))
+	out, err := Shake(input, Include("$[0,2,4]"))
 	if err != nil {
 		t.Fatal(err)
 	}

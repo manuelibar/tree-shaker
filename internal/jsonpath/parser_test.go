@@ -273,3 +273,64 @@ func TestParsePathTooLong(t *testing.T) {
 		t.Error("expected error for path too long")
 	}
 }
+
+func TestPathIsAbsolute(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want bool
+	}{
+		{"$.name", true},
+		{"$..name", true},
+		{".name", false},
+		{".foo.bar", false},
+	}
+	for _, tt := range tests {
+		p, err := parsePath(tt.raw)
+		if err != nil {
+			t.Fatalf("parsePath(%q): %v", tt.raw, err)
+		}
+		if got := p.IsAbsolute(); got != tt.want {
+			t.Errorf("Path(%q).IsAbsolute() = %v, want %v", tt.raw, got, tt.want)
+		}
+	}
+}
+
+func TestPathPrepend(t *testing.T) {
+	prefix, err := parsePath("$.data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, err := parsePath(".name")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := path.Prepend(*prefix)
+
+	if result.Raw != "$.data.name" {
+		t.Errorf("Raw = %q, want %q", result.Raw, "$.data.name")
+	}
+	if len(result.Segments) != 2 {
+		t.Fatalf("expected 2 segments, got %d", len(result.Segments))
+	}
+	if result.Segments[0].Selectors[0].(NameSelector).Name != "data" {
+		t.Error("first segment should be 'data'")
+	}
+	if result.Segments[1].Selectors[0].(NameSelector).Name != "name" {
+		t.Error("second segment should be 'name'")
+	}
+}
+
+func TestSegmentWithoutDescendant(t *testing.T) {
+	seg := Segment{
+		Selectors:  []Selector{NameSelector{Name: "name"}},
+		Descendant: true,
+	}
+	result := seg.WithoutDescendant()
+	if result.Descendant {
+		t.Error("expected Descendant = false")
+	}
+	if result.Selectors[0].(NameSelector).Name != "name" {
+		t.Error("selectors should be preserved")
+	}
+}
