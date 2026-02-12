@@ -1,9 +1,8 @@
 package shaker
 
-// Builder is the entry point of the fluent builder, returned by Shaker.From().
+// Builder is the entry point of the fluent API, returned by From().
 // It forks into IncludeBuilder or ExcludeBuilder, enforcing mutual exclusivity at compile time.
 type Builder struct {
-	shaker *Shaker
 	input  []byte
 	prefix string
 }
@@ -48,7 +47,7 @@ func (p *IncludeBuilder) Shake() ([]byte, error) {
 	if p.builder.prefix != "" {
 		q = q.WithPrefix(p.builder.prefix)
 	}
-	return p.builder.shaker.Shake(p.builder.input, q)
+	return Shake(p.builder.input, q)
 }
 
 // MustShake executes the include builder, panicking on error.
@@ -78,7 +77,7 @@ func (p *ExcludeBuilder) Shake() ([]byte, error) {
 	if p.builder.prefix != "" {
 		q = q.WithPrefix(p.builder.prefix)
 	}
-	return p.builder.shaker.Shake(p.builder.input, q)
+	return Shake(p.builder.input, q)
 }
 
 // MustShake executes the exclude builder, panicking on error.

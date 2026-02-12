@@ -85,7 +85,7 @@ func (n *trieNode) insert(segments []Segment, segIdx int) {
 			n.descendant = newTrieNode()
 		}
 		// Insert the rest of this segment (without the descendant flag) into the descendant node
-		nonDescSeg := Segment{Selectors: seg.Selectors, Descendant: false}
+		nonDescSeg := seg.WithoutDescendant()
 		remaining := make([]Segment, 0, len(segments)-segIdx)
 		remaining = append(remaining, nonDescSeg)
 		remaining = append(remaining, segments[segIdx+1:]...)

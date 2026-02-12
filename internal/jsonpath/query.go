@@ -112,15 +112,27 @@ func (q *Query) buildTrie() (*trieNode, error) {
 		return nil, fmt.Errorf("query exceeds maximum path count of %d", MaxPathCount)
 	}
 
+	var prefix *Path
+	if q.prefix != "" {
+		var err error
+		prefix, err = parsePath(q.prefix)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	var errs []error
 	var paths []*Path
 
 	for _, raw := range q.rawPaths {
-		fullPath := q.applyPrefix(raw)
-		p, err := parsePath(fullPath)
+		p, err := parsePath(raw)
 		if err != nil {
 			errs = append(errs, err)
 			continue
+		}
+		if prefix != nil && !p.IsAbsolute() {
+			scoped := p.Prepend(*prefix)
+			p = &scoped
 		}
 		paths = append(paths, p)
 	}
@@ -130,19 +142,6 @@ func (q *Query) buildTrie() (*trieNode, error) {
 	}
 
 	return buildTrie(paths), nil
-}
-
-// applyPrefix prepends the prefix to a path if the path is relative.
-func (q *Query) applyPrefix(raw string) string {
-	if q.prefix == "" {
-		return raw
-	}
-	// If path starts with "$", leave it as-is
-	if len(raw) > 0 && raw[0] == '$' {
-		return raw
-	}
-	// Append relative path to prefix
-	return q.prefix + raw
 }
 
 // ShakeRequest is a wire-friendly representation of a shake query.
