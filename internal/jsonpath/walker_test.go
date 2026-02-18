@@ -3,15 +3,17 @@ package jsonpath
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/mibar/tree-shaker/internal/jsonpath/parser"
 )
 
 func mustParse(t *testing.T, paths ...string) *trieNode {
 	t.Helper()
-	var parsed []*Path
+	var parsed []*parser.Path
 	for _, raw := range paths {
-		p, err := parsePath(raw)
+		p, err := parser.ParsePath(raw)
 		if err != nil {
-			t.Fatalf("parsePath(%q): %v", raw, err)
+			t.Fatalf("ParsePath(%q): %v", raw, err)
 		}
 		parsed = append(parsed, p)
 	}
@@ -34,6 +36,14 @@ func toJSON(t *testing.T, v any) string {
 		t.Fatalf("json.Marshal: %v", err)
 	}
 	return string(b)
+}
+
+func walkInclude(tree any, trie *trieNode, depth int) (any, error) {
+	return (walker{include: true}).walk(tree, trie, depth)
+}
+
+func walkExclude(tree any, trie *trieNode, depth int) (any, error) {
+	return (walker{include: false}).walk(tree, trie, depth)
 }
 
 func TestWalkIncludeSingleField(t *testing.T) {
@@ -248,18 +258,108 @@ func TestWalkExcludeWildcard(t *testing.T) {
 }
 
 func TestWalkDepthLimit(t *testing.T) {
-	// Create a deeply nested object
+	const limit = 50
+	inner := map[string]any{"leaf": true}
+	for i := 0; i < limit+10; i++ {
+		inner = map[string]any{"nested": inner}
+	}
+
+	trie := mustParse(t, "$..leaf")
+	w := walker{include: true, maxDepth: limit}
+	_, err := w.walk(inner, trie, 0)
+	if err == nil {
+		t.Error("expected DepthError")
+	}
+	de, ok := err.(*DepthError)
+	if !ok {
+		t.Fatalf("expected *DepthError, got %T", err)
+	}
+	if de.MaxDepth != limit {
+		t.Errorf("DepthError.MaxDepth = %d, want %d", de.MaxDepth, limit)
+	}
+}
+
+func TestWalkNoDepthLimitByDefault(t *testing.T) {
+	// Build a structure deeper than the MaxDepth constant — should succeed
+	// because the default is unrestricted.
 	inner := map[string]any{"leaf": true}
 	for i := 0; i < MaxDepth+10; i++ {
 		inner = map[string]any{"nested": inner}
 	}
 
 	trie := mustParse(t, "$..leaf")
-	_, err := walkInclude(inner, trie, 0)
-	if err == nil {
-		t.Error("expected DepthError")
+	result, err := walkInclude(inner, trie, 0)
+	if err != nil {
+		t.Fatalf("unexpected error with unrestricted depth: %v", err)
 	}
-	if _, ok := err.(*DepthError); !ok {
-		t.Errorf("expected *DepthError, got %T", err)
+	if result == nil {
+		t.Error("expected non-nil result")
+	}
+}
+
+// TestWalkIncludeDescendantWithDirectMatch verifies that ε-closure propagation
+// is NOT dropped when a direct match also exists. This was a bug where
+// the condition `&& merged == nil` prevented ε-closure search when a key
+// already had a direct trie match.
+func TestWalkIncludeDescendantWithDirectMatch(t *testing.T) {
+	tree := unmarshal(t, `{"a":{"x":1,"name":"A","b":{"name":"B"}}}`)
+	trie := mustParse(t, "$.a.x", "$..name")
+
+	result, err := walkInclude(tree, trie, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj := result.(map[string]any)
+	a := obj["a"].(map[string]any)
+	if a["x"] != float64(1) {
+		t.Error("expected a.x = 1")
+	}
+	if a["name"] != "A" {
+		t.Error("expected a.name = A (from ε-closure)")
+	}
+	b := a["b"].(map[string]any)
+	if b["name"] != "B" {
+		t.Error("expected a.b.name = B (from ε-closure)")
+	}
+}
+
+// TestWalkExcludeDescendantWithDirectMatch verifies that ε-closure exclusion
+// is applied even when a direct match also exists for a key.
+func TestWalkExcludeDescendantWithDirectMatch(t *testing.T) {
+	tree := unmarshal(t, `{"a":{"x":1,"secret":"hidden","b":{"secret":"also_hidden","name":"B"}}}`)
+	trie := mustParse(t, "$.a.x", "$..secret")
+
+	result, err := walkExclude(tree, trie, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj := result.(map[string]any)
+	a := obj["a"].(map[string]any)
+	if _, ok := a["x"]; ok {
+		t.Error("a.x should be excluded by $.a.x")
+	}
+	if _, ok := a["secret"]; ok {
+		t.Error("a.secret should be excluded by $..secret")
+	}
+	b := a["b"].(map[string]any)
+	if _, ok := b["secret"]; ok {
+		t.Error("a.b.secret should be excluded by $..secret")
+	}
+	if b["name"] != "B" {
+		t.Error("a.b.name should be kept")
+	}
+}
+
+func TestDepthErrorMessage(t *testing.T) {
+	err := &DepthError{Depth: 1001, MaxDepth: MaxDepth}
+	got := err.Error()
+	if got == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestMaxDepthConstant(t *testing.T) {
+	if MaxDepth != 1000 {
+		t.Errorf("MaxDepth = %d, want 1000", MaxDepth)
 	}
 }

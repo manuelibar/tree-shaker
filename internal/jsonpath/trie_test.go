@@ -1,17 +1,21 @@
 package jsonpath
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/mibar/tree-shaker/internal/jsonpath/parser"
+)
 
 func TestTrieSinglePath(t *testing.T) {
-	p, _ := parsePath("$.name")
-	trie := buildTrie([]*Path{p})
+	p, _ := parser.ParsePath("$.name")
+	trie := buildTrie([]*parser.Path{p})
 
 	child := trie.match("name")
 	if child == nil {
 		t.Fatal("expected match for 'name'")
 	}
-	if !child.terminal {
-		t.Error("expected terminal node")
+	if !child.accepting {
+		t.Error("expected accepting node")
 	}
 
 	if trie.match("age") != nil {
@@ -20,9 +24,9 @@ func TestTrieSinglePath(t *testing.T) {
 }
 
 func TestTrieMultiplePaths(t *testing.T) {
-	p1, _ := parsePath("$.name")
-	p2, _ := parsePath("$.email")
-	trie := buildTrie([]*Path{p1, p2})
+	p1, _ := parser.ParsePath("$.name")
+	p2, _ := parser.ParsePath("$.email")
+	trie := buildTrie([]*parser.Path{p1, p2})
 
 	if trie.match("name") == nil {
 		t.Error("expected match for 'name'")
@@ -36,31 +40,31 @@ func TestTrieMultiplePaths(t *testing.T) {
 }
 
 func TestTrieSharedPrefix(t *testing.T) {
-	p1, _ := parsePath("$.data.name")
-	p2, _ := parsePath("$.data.email")
-	trie := buildTrie([]*Path{p1, p2})
+	p1, _ := parser.ParsePath("$.data.name")
+	p2, _ := parser.ParsePath("$.data.email")
+	trie := buildTrie([]*parser.Path{p1, p2})
 
 	data := trie.match("data")
 	if data == nil {
 		t.Fatal("expected match for 'data'")
 	}
-	if data.terminal {
-		t.Error("'data' should not be terminal")
+	if data.accepting {
+		t.Error("'data' should not be accepting")
 	}
 
 	name := data.match("name")
-	if name == nil || !name.terminal {
-		t.Error("expected terminal 'name' under 'data'")
+	if name == nil || !name.accepting {
+		t.Error("expected accepting 'name' under 'data'")
 	}
 	email := data.match("email")
-	if email == nil || !email.terminal {
-		t.Error("expected terminal 'email' under 'data'")
+	if email == nil || !email.accepting {
+		t.Error("expected accepting 'email' under 'data'")
 	}
 }
 
 func TestTrieWildcard(t *testing.T) {
-	p, _ := parsePath("$.users[*].name")
-	trie := buildTrie([]*Path{p})
+	p, _ := parser.ParsePath("$.users[*].name")
+	trie := buildTrie([]*parser.Path{p})
 
 	users := trie.match("users")
 	if users == nil {
@@ -70,14 +74,14 @@ func TestTrieWildcard(t *testing.T) {
 		t.Fatal("expected wildcard child")
 	}
 	name := users.wildcard.match("name")
-	if name == nil || !name.terminal {
-		t.Error("expected terminal 'name' under wildcard")
+	if name == nil || !name.accepting {
+		t.Error("expected accepting 'name' under wildcard")
 	}
 }
 
 func TestTrieIndex(t *testing.T) {
-	p, _ := parsePath("$.items[0].title")
-	trie := buildTrie([]*Path{p})
+	p, _ := parser.ParsePath("$.items[0].title")
+	trie := buildTrie([]*parser.Path{p})
 
 	items := trie.match("items")
 	if items == nil {
@@ -90,8 +94,8 @@ func TestTrieIndex(t *testing.T) {
 	}
 
 	title := child.match("title")
-	if title == nil || !title.terminal {
-		t.Error("expected terminal 'title'")
+	if title == nil || !title.accepting {
+		t.Error("expected accepting 'title'")
 	}
 
 	if items.matchIndex(1, 5) != nil {
@@ -99,23 +103,23 @@ func TestTrieIndex(t *testing.T) {
 	}
 }
 
-func TestTrieDescendant(t *testing.T) {
-	p, _ := parsePath("$..name")
-	trie := buildTrie([]*Path{p})
+func TestTrieEpsilon(t *testing.T) {
+	p, _ := parser.ParsePath("$..name")
+	trie := buildTrie([]*parser.Path{p})
 
-	if trie.descendant == nil {
-		t.Fatal("expected descendant node")
+	if trie.epsilon == nil {
+		t.Fatal("expected epsilon node")
 	}
 
-	name := trie.descendant.match("name")
-	if name == nil || !name.terminal {
-		t.Error("expected terminal 'name' in descendant")
+	name := trie.epsilon.match("name")
+	if name == nil || !name.accepting {
+		t.Error("expected accepting 'name' in epsilon")
 	}
 }
 
 func TestTrieMatchIndex(t *testing.T) {
-	p, _ := parsePath("$[0,2,4]")
-	trie := buildTrie([]*Path{p})
+	p, _ := parser.ParsePath("$[0,2,4]")
+	trie := buildTrie([]*parser.Path{p})
 
 	if trie.matchIndex(0, 5) == nil {
 		t.Error("expected match for 0")

@@ -1,144 +1,252 @@
 package jsonpath
 
-// walkInclude builds a new tree containing only the paths matched by the trie.
-func walkInclude(node any, trie *trieNode, depth int) (any, error) {
+// walker.go implements a trie-guided tree walker for JSON tree pruning.
+//
+// # How It Works
+//
+// The walker traverses a JSON tree (from encoding/json.Unmarshal) and the
+// compiled trie simultaneously — in lockstep. "Lockstep" means that for
+// every step down into the JSON tree (entering an object value or array
+// element), the walker also steps down into the trie (following the
+// matching transition). The trie acts as a guide: it tells the walker
+// which branches of the JSON tree to keep, skip, or recurse into.
+//
+// At each JSON node, the walker queries the trie:
+//   - If the trie node is nil → no path reaches here (include: skip, exclude: keep).
+//   - If the trie node is accepting → a full path ends here (include: keep subtree, exclude: remove subtree).
+//   - Otherwise → recurse deeper into both the JSON tree and the trie.
+//
+// # NFA Simulation at Walk Time
+//
+// When the trie has an ε-transition (from the ".." operator), the walker
+// simulates an NFA: at each JSON node, it is effectively in *two states*
+// simultaneously — the direct trie state and the ε-transition state.
+// Both are tested against each key, and results are merged.
+//
+// The ε-transition state is *propagated* to every descendant — this is
+// the ε-closure. Unlike direct transitions that are consumed (one key =
+// one step), the ε-transition persists across depths, which is what makes
+// "$..name" match "name" at ANY nesting level.
+//
+// # Include vs Exclude
+//
+// Behavior is selected by a single `include` bool set at construction:
+//   - Include mode: builds a new tree containing only matched subtrees.
+//     Uses [walkSearchEpsilon] for ε-closure (finds and collects matches).
+//   - Exclude mode: clones the tree, omitting matched subtrees.
+//     Uses [walkFilterEpsilon] for ε-closure (removes matches from result).
+//
+// # Patterns
+//
+//   - Tree Walker / Catamorphism: recursive fold over a JSON tree guided by trie.
+//   - NFA simulation: tracks multiple active states via trie + ε-transition.
+//   - ε-closure propagation: recursive descent matches at every depth.
+//   - Strategy pattern via bool: include/exclude selected once, never changes.
+
+import "fmt"
+
+// ---------------------------------------------------------------------------
+// Depth limit
+// ---------------------------------------------------------------------------
+
+// MaxDepth is the default maximum recursion depth the walker will traverse.
+// Applied by [DefaultLimits]; ignored when [Limits].MaxDepth is nil.
+//
+// Deeply nested JSON documents can cause stack exhaustion. Always set a depth
+// limit when processing untrusted input.
+const MaxDepth = 1000
+
+// DepthError is returned when the walker exceeds the configured maximum depth.
+type DepthError struct {
+	Depth    int
+	MaxDepth int
+}
+
+func (e *DepthError) Error() string {
+	return fmt.Sprintf("maximum JSON depth %d exceeded at depth %d", e.MaxDepth, e.Depth)
+}
+
+// ---------------------------------------------------------------------------
+// Walker
+// ---------------------------------------------------------------------------
+
+// walker traverses a JSON tree guided by a compiled trie, producing a pruned copy.
+// The `include` flag selects between include mode (keep only matched paths) and
+// exclude mode (remove matched paths, keep everything else).
+type walker struct {
+	include  bool
+	maxDepth int
+}
+
+func newWalker(mode Mode, maxDepth int) walker {
+	return walker{include: mode == ModeInclude, maxDepth: maxDepth}
+}
+
+// walk dispatches to the appropriate handler based on node type.
+func (w walker) walk(node any, trie *trieNode, depth int) (any, error) {
 	if trie == nil {
-		return nil, nil
-	}
-	if depth > MaxDepth {
-		return nil, &DepthError{Depth: depth}
-	}
-	if trie.terminal {
+		if w.include {
+			return nil, nil
+		}
 		return node, nil
+	}
+	if w.maxDepth > 0 && depth > w.maxDepth {
+		return nil, &DepthError{Depth: depth, MaxDepth: w.maxDepth}
+	}
+	if trie.accepting {
+		if w.include {
+			return node, nil
+		}
+		return nil, nil
 	}
 
 	switch v := node.(type) {
 	case map[string]any:
-		return walkIncludeObject(v, trie, depth)
+		return w.walkObject(v, trie, depth)
 	case []any:
-		return walkIncludeArray(v, trie, depth)
+		return w.walkArray(v, trie, depth)
 	default:
-		// Scalar: not at a terminal, so no match
-		return nil, nil
+		if w.include {
+			return nil, nil
+		}
+		return node, nil
 	}
 }
 
-func walkIncludeObject(obj map[string]any, trie *trieNode, depth int) (any, error) {
-	result := make(map[string]any)
+// walkObject iterates over object keys, matches each against the trie inline,
+// resolves the result, and applies ε-closure propagation.
+func (w walker) walkObject(obj map[string]any, trie *trieNode, depth int) (any, error) {
+	eps := trie.epsilon
+	var result map[string]any
+	if w.include {
+		result = make(map[string]any)
+	} else {
+		result = make(map[string]any, len(obj))
+	}
 
 	for key, val := range obj {
-		childTrie := trie.match(key)
-
-		var descChild *trieNode
-		if trie.descendant != nil {
-			descChild = trie.descendant.match(key)
+		// Inline trie matching — no iterator closure, no trieMatch struct.
+		child := trie.match(key)
+		if eps != nil {
+			child = mergePair(child, eps.match(key))
 		}
 
-		// Walk each branch independently, merge at value level.
-		var r1, r2 any
-		var err error
+		r, err := w.resolveMatch(val, child, depth)
+		if err != nil {
+			return nil, err
+		}
 
-		if childTrie != nil {
-			r1, err = walkInclude(val, childTrie, depth+1)
-			if err != nil {
-				return nil, err
+		// ε-closure propagation
+		if eps != nil {
+			if w.include {
+				found, ferr := w.walkSearchEpsilon(val, eps, depth+1)
+				if ferr != nil {
+					return nil, ferr
+				}
+				r = mergeValues(r, found)
+			} else if r != nil {
+				r, err = w.walkFilterEpsilon(r, eps, depth+1)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
-		if descChild != nil {
-			r2, err = walkInclude(val, descChild, depth+1)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		merged := mergeValues(r1, r2)
-		if merged != nil {
-			result[key] = merged
-		}
-
-		// Propagate descendant to children even if no direct/descendant match
-		if trie.descendant != nil && merged == nil {
-			descResult, err := walkIncludeDescendant(val, trie.descendant, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			if descResult != nil {
-				result[key] = descResult
-			}
+		if r != nil {
+			result[key] = r
 		}
 	}
 
-	if len(result) == 0 {
+	if w.include && len(result) == 0 {
 		return nil, nil
 	}
 	return result, nil
 }
 
-func walkIncludeArray(arr []any, trie *trieNode, depth int) (any, error) {
-	var result []any
+// walkArray iterates over array elements, matches each index against the trie inline,
+// resolves the result, and applies ε-closure propagation.
+func (w walker) walkArray(arr []any, trie *trieNode, depth int) (any, error) {
+	eps := trie.epsilon
 	arrLen := len(arr)
+	var result []any
+	if !w.include {
+		result = make([]any, 0, arrLen)
+	}
 
 	for idx, val := range arr {
-		childTrie := trie.matchIndex(idx, arrLen)
-
-		var descChild *trieNode
-		if trie.descendant != nil {
-			descChild = trie.descendant.matchIndex(idx, arrLen)
+		child := trie.matchIndex(idx, arrLen)
+		if eps != nil {
+			child = mergePair(child, eps.matchIndex(idx, arrLen))
 		}
 
-		// Walk each branch independently, merge at value level.
-		var r1, r2 any
-		var err error
+		r, err := w.resolveMatch(val, child, depth)
+		if err != nil {
+			return nil, err
+		}
 
-		if childTrie != nil {
-			r1, err = walkInclude(val, childTrie, depth+1)
-			if err != nil {
-				return nil, err
+		// ε-closure propagation
+		if eps != nil {
+			if w.include {
+				found, ferr := w.walkSearchEpsilon(val, eps, depth+1)
+				if ferr != nil {
+					return nil, ferr
+				}
+				r = mergeValues(r, found)
+			} else if r != nil {
+				r, err = w.walkFilterEpsilon(r, eps, depth+1)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 
-		if descChild != nil {
-			r2, err = walkInclude(val, descChild, depth+1)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		merged := mergeValues(r1, r2)
-		if merged != nil {
-			result = append(result, merged)
-		} else if trie.descendant != nil {
-			descResult, err := walkIncludeDescendant(val, trie.descendant, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			if descResult != nil {
-				result = append(result, descResult)
-			}
+		if r != nil {
+			result = append(result, r)
 		}
 	}
 
-	if len(result) == 0 {
+	if w.include && len(result) == 0 {
 		return nil, nil
 	}
 	return result, nil
 }
 
-// walkIncludeDescendant handles recursive descent for include mode.
-// It checks if the descendant trie matches the current node and recurses into children.
-func walkIncludeDescendant(node any, descTrie *trieNode, depth int) (any, error) {
-	if depth > MaxDepth {
-		return nil, &DepthError{Depth: depth}
+// resolveMatch determines the value for a key/index based on the effective trie.
+func (w walker) resolveMatch(val any, child *trieNode, depth int) (any, error) {
+	if child == nil {
+		if w.include {
+			return nil, nil
+		}
+		return val, nil
+	}
+	if child.accepting {
+		if w.include {
+			return val, nil
+		}
+		return nil, nil
+	}
+	return w.walk(val, child, depth+1)
+}
+
+// ---------------------------------------------------------------------------
+// ε-closure propagation strategies
+// ---------------------------------------------------------------------------
+
+// walkSearchEpsilon recursively searches for ε-transition matches in the
+// original value and builds a partial result containing only matched paths.
+// Used by include mode. Analogous to regex findAll.
+func (w walker) walkSearchEpsilon(node any, epsTrie *trieNode, depth int) (any, error) {
+	if w.maxDepth > 0 && depth > w.maxDepth {
+		return nil, &DepthError{Depth: depth, MaxDepth: w.maxDepth}
 	}
 
 	switch v := node.(type) {
 	case map[string]any:
 		result := make(map[string]any)
 		for key, val := range v {
-			childTrie := descTrie.match(key)
+			childTrie := epsTrie.match(key)
 			if childTrie != nil {
-				childResult, err := walkInclude(val, childTrie, depth+1)
+				childResult, err := w.walk(val, childTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
@@ -146,16 +254,16 @@ func walkIncludeDescendant(node any, descTrie *trieNode, depth int) (any, error)
 					result[key] = childResult
 				}
 			}
-			// Always continue descent
-			descResult, err := walkIncludeDescendant(val, descTrie, depth+1)
+			// Always continue ε-closure
+			epsResult, err := w.walkSearchEpsilon(val, epsTrie, depth+1)
 			if err != nil {
 				return nil, err
 			}
-			if descResult != nil {
+			if epsResult != nil {
 				if existing, ok := result[key]; ok {
-					result[key] = mergeValues(existing, descResult)
+					result[key] = mergeValues(existing, epsResult)
 				} else {
-					result[key] = descResult
+					result[key] = epsResult
 				}
 			}
 		}
@@ -168,20 +276,20 @@ func walkIncludeDescendant(node any, descTrie *trieNode, depth int) (any, error)
 		var result []any
 		arrLen := len(v)
 		for idx, val := range v {
-			childTrie := descTrie.matchIndex(idx, arrLen)
+			childTrie := epsTrie.matchIndex(idx, arrLen)
 			var childResult any
 			var err error
 			if childTrie != nil {
-				childResult, err = walkInclude(val, childTrie, depth+1)
+				childResult, err = w.walk(val, childTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
 			}
-			descResult, err := walkIncludeDescendant(val, descTrie, depth+1)
+			epsResult, err := w.walkSearchEpsilon(val, epsTrie, depth+1)
 			if err != nil {
 				return nil, err
 			}
-			merged := mergeValues(childResult, descResult)
+			merged := mergeValues(childResult, epsResult)
 			if merged != nil {
 				result = append(result, merged)
 			}
@@ -195,173 +303,68 @@ func walkIncludeDescendant(node any, descTrie *trieNode, depth int) (any, error)
 	return nil, nil
 }
 
-// walkExclude clones the structure, removing paths matched by the trie.
-func walkExclude(node any, trie *trieNode, depth int) (any, error) {
-	if trie == nil {
-		return node, nil
-	}
-	if depth > MaxDepth {
-		return nil, &DepthError{Depth: depth}
-	}
-	if trie.terminal {
-		return nil, nil
-	}
-
-	switch v := node.(type) {
-	case map[string]any:
-		return walkExcludeObject(v, trie, depth)
-	case []any:
-		return walkExcludeArray(v, trie, depth)
-	default:
-		return node, nil
-	}
-}
-
-func walkExcludeObject(obj map[string]any, trie *trieNode, depth int) (any, error) {
-	result := make(map[string]any, len(obj))
-
-	for key, val := range obj {
-		childTrie := trie.match(key)
-
-		var descChild *trieNode
-		if trie.descendant != nil {
-			descChild = trie.descendant.match(key)
-		}
-
-		// Merge the two trie branches for exclude logic.
-		effectiveTrie := mergeNodes(compact(childTrie, descChild))
-
-		if effectiveTrie == nil {
-			// Not in trie — check descendant
-			if trie.descendant != nil {
-				excResult, err := walkExcludeDescendant(val, trie.descendant, depth+1)
-				if err != nil {
-					return nil, err
-				}
-				result[key] = excResult
-			} else {
-				result[key] = val
-			}
-		} else if effectiveTrie.terminal {
-			// Terminal — exclude this key entirely
-			continue
-		} else {
-			// Partial match — recurse deeper
-			childResult, err := walkExclude(val, effectiveTrie, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			if childResult != nil {
-				result[key] = childResult
-			}
-		}
-	}
-
-	return result, nil
-}
-
-func walkExcludeArray(arr []any, trie *trieNode, depth int) (any, error) {
-	var result []any
-	arrLen := len(arr)
-
-	for idx, val := range arr {
-		childTrie := trie.matchIndex(idx, arrLen)
-
-		var descChild *trieNode
-		if trie.descendant != nil {
-			descChild = trie.descendant.matchIndex(idx, arrLen)
-		}
-
-		effectiveTrie := mergeNodes(compact(childTrie, descChild))
-
-		if effectiveTrie == nil {
-			if trie.descendant != nil {
-				excResult, err := walkExcludeDescendant(val, trie.descendant, depth+1)
-				if err != nil {
-					return nil, err
-				}
-				result = append(result, excResult)
-			} else {
-				result = append(result, val)
-			}
-		} else if effectiveTrie.terminal {
-			continue
-		} else {
-			childResult, err := walkExclude(val, effectiveTrie, depth+1)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, childResult)
-		}
-	}
-
-	return result, nil
-}
-
-// walkExcludeDescendant handles recursive descent for exclude mode.
-func walkExcludeDescendant(node any, descTrie *trieNode, depth int) (any, error) {
-	if depth > MaxDepth {
-		return nil, &DepthError{Depth: depth}
+// walkFilterEpsilon recursively walks an already-filtered result and removes
+// any additional matches found by the ε-transition trie at every level.
+// Used by exclude mode. Analogous to regex replaceAll.
+func (w walker) walkFilterEpsilon(node any, epsTrie *trieNode, depth int) (any, error) {
+	if w.maxDepth > 0 && depth > w.maxDepth {
+		return nil, &DepthError{Depth: depth, MaxDepth: w.maxDepth}
 	}
 
 	switch v := node.(type) {
 	case map[string]any:
 		result := make(map[string]any, len(v))
 		for key, val := range v {
-			childTrie := descTrie.match(key)
-			if childTrie != nil && childTrie.terminal {
-				// Exclude
+			childTrie := epsTrie.match(key)
+			if childTrie != nil && childTrie.accepting {
 				continue
 			}
 			if childTrie != nil {
-				// Partial match + continue descent
-				childResult, err := walkExclude(val, childTrie, depth+1)
+				childResult, err := w.walk(val, childTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				// Also apply descendant exclusion
-				descResult, err := walkExcludeDescendant(childResult, descTrie, depth+1)
+				epsResult, err := w.walkFilterEpsilon(childResult, epsTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				if descResult != nil {
-					result[key] = descResult
+				if epsResult != nil {
+					result[key] = epsResult
 				}
 			} else {
-				// No match at this level — continue descent
-				descResult, err := walkExcludeDescendant(val, descTrie, depth+1)
+				epsResult, err := w.walkFilterEpsilon(val, epsTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				result[key] = descResult
+				result[key] = epsResult
 			}
 		}
 		return result, nil
 
 	case []any:
-		var result []any
+		result := make([]any, 0, len(v))
 		arrLen := len(v)
 		for idx, val := range v {
-			childTrie := descTrie.matchIndex(idx, arrLen)
-			if childTrie != nil && childTrie.terminal {
+			childTrie := epsTrie.matchIndex(idx, arrLen)
+			if childTrie != nil && childTrie.accepting {
 				continue
 			}
 			if childTrie != nil {
-				childResult, err := walkExclude(val, childTrie, depth+1)
+				childResult, err := w.walk(val, childTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				descResult, err := walkExcludeDescendant(childResult, descTrie, depth+1)
+				epsResult, err := w.walkFilterEpsilon(childResult, epsTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				result = append(result, descResult)
+				result = append(result, epsResult)
 			} else {
-				descResult, err := walkExcludeDescendant(val, descTrie, depth+1)
+				epsResult, err := w.walkFilterEpsilon(val, epsTrie, depth+1)
 				if err != nil {
 					return nil, err
 				}
-				result = append(result, descResult)
+				result = append(result, epsResult)
 			}
 		}
 		return result, nil
@@ -370,7 +373,12 @@ func walkExcludeDescendant(node any, descTrie *trieNode, depth int) (any, error)
 	return node, nil
 }
 
-// mergeValues merges two values (used when include + descendant both produce results).
+// ---------------------------------------------------------------------------
+// Merge utility
+// ---------------------------------------------------------------------------
+
+// mergeValues merges two values (used when include + ε-closure both produce results).
+// Neither argument is mutated; a new map is returned when both are objects.
 func mergeValues(a, b any) any {
 	if a == nil {
 		return b
@@ -382,32 +390,20 @@ func mergeValues(a, b any) any {
 	aObj, aIsObj := a.(map[string]any)
 	bObj, bIsObj := b.(map[string]any)
 	if aIsObj && bIsObj {
+		merged := make(map[string]any, len(aObj)+len(bObj))
+		for k, v := range aObj {
+			merged[k] = v
+		}
 		for k, v := range bObj {
-			if existing, ok := aObj[k]; ok {
-				aObj[k] = mergeValues(existing, v)
+			if existing, ok := merged[k]; ok {
+				merged[k] = mergeValues(existing, v)
 			} else {
-				aObj[k] = v
+				merged[k] = v
 			}
 		}
-		return aObj
+		return merged
 	}
 
-	// For non-objects, prefer a (direct match over descendant)
+	// For non-objects, prefer a (direct match over ε-transition)
 	return a
-}
-
-// compact filters nil entries from a list of trie nodes.
-// Uses a stack-allocated buffer to avoid heap allocation in the common 2-arg case.
-func compact(nodes ...*trieNode) []*trieNode {
-	var buf [2]*trieNode
-	out := buf[:0]
-	for _, n := range nodes {
-		if n != nil {
-			out = append(out, n)
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
 }

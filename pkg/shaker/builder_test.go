@@ -7,7 +7,7 @@ import (
 
 func TestIncludePipeline(t *testing.T) {
 	input := []byte(`{"name":"John","age":30,"email":"john@example.com"}`)
-	out, err := From(input).
+	out, err := NewBuilder(input).
 		Include(".name", ".email").
 		Shake()
 	if err != nil {
@@ -28,7 +28,7 @@ func TestIncludePipeline(t *testing.T) {
 
 func TestExcludePipeline(t *testing.T) {
 	input := []byte(`{"name":"John","password":"secret","email":"john@example.com"}`)
-	out, err := From(input).
+	out, err := NewBuilder(input).
 		Exclude(".password").
 		Shake()
 	if err != nil {
@@ -49,7 +49,7 @@ func TestExcludePipeline(t *testing.T) {
 
 func TestPipelineWithPrefix(t *testing.T) {
 	input := []byte(`{"data":{"name":"John","age":30},"meta":"kept"}`)
-	out, err := From(input).
+	out, err := NewBuilder(input).
 		Prefix("$.data").
 		Include(".name").
 		Shake()
@@ -69,7 +69,7 @@ func TestPipelineWithPrefix(t *testing.T) {
 
 func TestPipelineChainedInclude(t *testing.T) {
 	input := []byte(`{"name":"John","age":30,"email":"john@example.com","phone":"123"}`)
-	out, err := From(input).
+	out, err := NewBuilder(input).
 		Include(".name").
 		Include(".email").
 		Shake()
@@ -91,7 +91,7 @@ func TestPipelineChainedInclude(t *testing.T) {
 
 func TestMustShakePipeline(t *testing.T) {
 	input := []byte(`{"name":"John","age":30}`)
-	out := From(input).
+	out := NewBuilder(input).
 		Include(".name").
 		MustShake()
 
@@ -112,7 +112,7 @@ func TestMustShakePipelinePanics(t *testing.T) {
 	}()
 
 	input := []byte(`{"name":"John"}`)
-	From(input).
+	NewBuilder(input).
 		Include(".[invalid").
 		MustShake()
 }

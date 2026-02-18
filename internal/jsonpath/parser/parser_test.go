@@ -1,11 +1,11 @@
-package jsonpath
+package parser
 
 import (
 	"testing"
 )
 
 func TestParseSimpleName(t *testing.T) {
-	p, err := parsePath("$.foo")
+	p, err := ParsePath("$.foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,7 +18,7 @@ func TestParseSimpleName(t *testing.T) {
 }
 
 func TestParseNestedPath(t *testing.T) {
-	p, err := parsePath("$.data.users")
+	p, err := ParsePath("$.data.users")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestParseNestedPath(t *testing.T) {
 }
 
 func TestParseWithoutDollar(t *testing.T) {
-	p, err := parsePath(".foo.bar")
+	p, err := ParsePath(".foo.bar")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestParseWithoutDollar(t *testing.T) {
 }
 
 func TestParseWildcard(t *testing.T) {
-	p, err := parsePath("$.users.*")
+	p, err := ParsePath("$.users.*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestParseWildcard(t *testing.T) {
 }
 
 func TestParseRecursiveDescent(t *testing.T) {
-	p, err := parsePath("$..name")
+	p, err := ParsePath("$..name")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestParseRecursiveDescent(t *testing.T) {
 }
 
 func TestParseBracketIndex(t *testing.T) {
-	p, err := parsePath("$.items[0]")
+	p, err := ParsePath("$.items[0]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestParseBracketIndex(t *testing.T) {
 }
 
 func TestParseNegativeIndex(t *testing.T) {
-	p, err := parsePath("$.items[-1]")
+	p, err := ParsePath("$.items[-1]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestParseNegativeIndex(t *testing.T) {
 }
 
 func TestParseBracketWildcard(t *testing.T) {
-	p, err := parsePath("$.items[*]")
+	p, err := ParsePath("$.items[*]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestParseBracketWildcard(t *testing.T) {
 }
 
 func TestParseStringSelector(t *testing.T) {
-	p, err := parsePath("$['special-key']")
+	p, err := ParsePath("$['special-key']")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestParseStringSelector(t *testing.T) {
 }
 
 func TestParseDoubleQuotedString(t *testing.T) {
-	p, err := parsePath(`$["special-key"]`)
+	p, err := ParsePath(`$["special-key"]`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestParseDoubleQuotedString(t *testing.T) {
 }
 
 func TestParseSlice(t *testing.T) {
-	p, err := parsePath("$[0:5]")
+	p, err := ParsePath("$[0:5]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestParseSlice(t *testing.T) {
 }
 
 func TestParseSliceWithStep(t *testing.T) {
-	p, err := parsePath("$[::2]")
+	p, err := ParsePath("$[::2]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestParseSliceWithStep(t *testing.T) {
 }
 
 func TestParseMultiSelector(t *testing.T) {
-	p, err := parsePath("$[0,1,2]")
+	p, err := ParsePath("$[0,1,2]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestParseMultiSelector(t *testing.T) {
 }
 
 func TestParseMultiStringSelector(t *testing.T) {
-	p, err := parsePath("$['a','b']")
+	p, err := ParsePath("$['a','b']")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ func TestParseMultiStringSelector(t *testing.T) {
 }
 
 func TestParseRecursiveDescentWildcard(t *testing.T) {
-	p, err := parsePath("$..*")
+	p, err := ParsePath("$..*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestParseRecursiveDescentWildcard(t *testing.T) {
 }
 
 func TestParseRecursiveDescentBracket(t *testing.T) {
-	p, err := parsePath("$..[0]")
+	p, err := ParsePath("$..[0]")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,14 +232,14 @@ func TestParseRecursiveDescentBracket(t *testing.T) {
 }
 
 func TestParseErrorEmpty(t *testing.T) {
-	_, err := parsePath("$")
+	_, err := ParsePath("$")
 	if err == nil {
 		t.Error("expected error for empty path")
 	}
 }
 
 func TestParseErrorUnclosedBracket(t *testing.T) {
-	_, err := parsePath("$.foo[")
+	_, err := ParsePath("$.foo[")
 	if err == nil {
 		t.Error("expected error for unclosed bracket")
 	}
@@ -253,14 +253,14 @@ func TestParseErrorUnclosedBracket(t *testing.T) {
 }
 
 func TestParseErrorTrailingDot(t *testing.T) {
-	_, err := parsePath("$.foo.")
+	_, err := ParsePath("$.foo.")
 	if err == nil {
 		t.Error("expected error for trailing dot")
 	}
 }
 
 func TestParseErrorInvalidChar(t *testing.T) {
-	_, err := parsePath("$.foo!")
+	_, err := ParsePath("$.foo!")
 	if err == nil {
 		t.Error("expected error for invalid character")
 	}
@@ -268,9 +268,23 @@ func TestParseErrorInvalidChar(t *testing.T) {
 
 func TestParsePathTooLong(t *testing.T) {
 	long := "$." + string(make([]byte, MaxPathLength))
-	_, err := parsePath(long)
+	_, err := ParsePath(long, WithMaxLength(MaxPathLength))
 	if err == nil {
 		t.Error("expected error for path too long")
+	}
+}
+
+func TestParsePathNoLimitByDefault(t *testing.T) {
+	long := "$." + string(make([]byte, MaxPathLength))
+	// Without options, no length restriction is applied.
+	_, err := ParsePath(long)
+	// The path is all zero bytes so it will fail to parse, but NOT
+	// because of length — it should be a syntax error, not "path exceeds maximum length".
+	if err == nil {
+		return // parsed fine, that's acceptable
+	}
+	if pe, ok := err.(*ParseError); ok && pe.Message == "path exceeds maximum length" {
+		t.Error("ParsePath without WithMaxLength should not enforce a length limit")
 	}
 }
 
@@ -285,9 +299,9 @@ func TestPathIsAbsolute(t *testing.T) {
 		{".foo.bar", false},
 	}
 	for _, tt := range tests {
-		p, err := parsePath(tt.raw)
+		p, err := ParsePath(tt.raw)
 		if err != nil {
-			t.Fatalf("parsePath(%q): %v", tt.raw, err)
+			t.Fatalf("ParsePath(%q): %v", tt.raw, err)
 		}
 		if got := p.IsAbsolute(); got != tt.want {
 			t.Errorf("Path(%q).IsAbsolute() = %v, want %v", tt.raw, got, tt.want)
@@ -296,11 +310,11 @@ func TestPathIsAbsolute(t *testing.T) {
 }
 
 func TestPathPrepend(t *testing.T) {
-	prefix, err := parsePath("$.data")
+	prefix, err := ParsePath("$.data")
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := parsePath(".name")
+	path, err := ParsePath(".name")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -332,5 +346,51 @@ func TestSegmentWithoutDescendant(t *testing.T) {
 	}
 	if result.Selectors[0].(NameSelector).Name != "name" {
 		t.Error("selectors should be preserved")
+	}
+}
+
+func TestParseErrorMessage(t *testing.T) {
+	err := &ParseError{Path: "$.foo[", Pos: 5, Message: "unclosed '['"}
+	got := err.Error()
+	want := `parse error at position 5 in "$.foo[": unclosed '['`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestMaxPathLengthConstant(t *testing.T) {
+	if MaxPathLength < 1000 {
+		t.Errorf("MaxPathLength = %d, want >= 1000", MaxPathLength)
+	}
+}
+
+func TestParseEscapedString(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{`$['foo\'bar']`, "foo'bar"},
+		{`$["foo\"bar"]`, `foo"bar`},
+		{`$['foo\\bar']`, `foo\bar`},
+		{`$['foo\nbar']`, "foo\nbar"},
+		{`$['foo\tbar']`, "foo\tbar"},
+		{`$['foo\rbar']`, "foo\rbar"},
+	}
+	for _, tt := range tests {
+		p, err := ParsePath(tt.input)
+		if err != nil {
+			t.Fatalf("ParsePath(%q): %v", tt.input, err)
+		}
+		name := p.Segments[0].Selectors[0].(NameSelector).Name
+		if name != tt.want {
+			t.Errorf("ParsePath(%q) name = %q, want %q", tt.input, name, tt.want)
+		}
+	}
+}
+
+func TestParseInvalidEscape(t *testing.T) {
+	_, err := ParsePath(`$['foo\xbar']`)
+	if err == nil {
+		t.Error("expected error for invalid escape sequence")
 	}
 }

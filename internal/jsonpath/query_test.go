@@ -10,8 +10,8 @@ func TestIncludeQuery(t *testing.T) {
 	if q.mode != ModeInclude {
 		t.Error("expected include mode")
 	}
-	if len(q.rawPaths) != 2 {
-		t.Errorf("expected 2 paths, got %d", len(q.rawPaths))
+	if len(q.paths) != 2 {
+		t.Errorf("expected 2 paths, got %d", len(q.paths))
 	}
 }
 
@@ -80,67 +80,35 @@ func TestCompileIdempotent(t *testing.T) {
 	}
 }
 
-func TestMaxPathCount(t *testing.T) {
-	paths := make([]string, MaxPathCount+1)
+func TestMaxPathCountConstant(t *testing.T) {
+	if MaxPathCount != 1000 {
+		t.Errorf("MaxPathCount = %d, want 1000", MaxPathCount)
+	}
+}
+
+func TestMaxPathCountEnforced(t *testing.T) {
+	const limit = 10
+	paths := make([]string, limit+1)
 	for i := range paths {
 		paths[i] = "$.name"
 	}
-	q := Include(paths...)
+	q := Include(paths...).WithLimits(Limits{MaxPathCount: ptr(limit)})
 	_, err := q.Compile()
 	if err == nil {
 		t.Error("expected error for exceeding MaxPathCount")
 	}
 }
 
-func TestShakeRequestToQueryInclude(t *testing.T) {
-	r := ShakeRequest{
-		Mode:  "include",
-		Paths: []string{".name", ".email"},
+func TestMaxPathCountUnrestrictedByDefault(t *testing.T) {
+	// Default (no limits) should allow any number of paths.
+	paths := make([]string, MaxPathCount+1)
+	for i := range paths {
+		paths[i] = "$.name"
 	}
-	q, err := r.ToQuery()
+	q := Include(paths...)
+	_, err := q.Compile()
 	if err != nil {
-		t.Fatal(err)
-	}
-	if q.mode != ModeInclude {
-		t.Error("expected include mode")
+		t.Errorf("unexpected error with unrestricted path count: %v", err)
 	}
 }
 
-func TestShakeRequestToQueryExclude(t *testing.T) {
-	r := ShakeRequest{
-		Mode:  "exclude",
-		Paths: []string{".password"},
-	}
-	q, err := r.ToQuery()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if q.mode != ModeExclude {
-		t.Error("expected exclude mode")
-	}
-}
-
-
-func TestShakeRequestToQueryInvalidMode(t *testing.T) {
-	r := ShakeRequest{Mode: "invalid", Paths: []string{".name"}}
-	_, err := r.ToQuery()
-	if err == nil {
-		t.Error("expected error for invalid mode")
-	}
-}
-
-func TestShakeRequestToQueryEmptyPaths(t *testing.T) {
-	r := ShakeRequest{Mode: "include", Paths: nil}
-	_, err := r.ToQuery()
-	if err == nil {
-		t.Error("expected error for empty paths")
-	}
-}
-
-func TestShakeRequestToQueryEmptyMode(t *testing.T) {
-	r := ShakeRequest{Mode: "", Paths: []string{".name"}}
-	_, err := r.ToQuery()
-	if err == nil {
-		t.Error("expected error for empty mode")
-	}
-}

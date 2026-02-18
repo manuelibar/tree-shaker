@@ -291,3 +291,75 @@ func TestShakeMultiSelector(t *testing.T) {
 		t.Errorf("got %s", out)
 	}
 }
+
+func TestShakeRequestUnmarshalInclude(t *testing.T) {
+	data := []byte(`{"mode":"include","paths":[".name",".email"]}`)
+	var r ShakeRequest
+	if err := json.Unmarshal(data, &r); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Query.IsInclude() {
+		t.Error("expected include mode")
+	}
+}
+
+func TestShakeRequestUnmarshalExclude(t *testing.T) {
+	data := []byte(`{"mode":"exclude","paths":[".password"]}`)
+	var r ShakeRequest
+	if err := json.Unmarshal(data, &r); err != nil {
+		t.Fatal(err)
+	}
+	if r.Query.IsInclude() {
+		t.Error("expected exclude mode")
+	}
+}
+
+func TestShakeRequestUnmarshalInvalidMode(t *testing.T) {
+	data := []byte(`{"mode":"invalid","paths":[".name"]}`)
+	var r ShakeRequest
+	if err := json.Unmarshal(data, &r); err == nil {
+		t.Error("expected error for invalid mode")
+	}
+}
+
+func TestShakeRequestUnmarshalEmptyPaths(t *testing.T) {
+	data := []byte(`{"mode":"include","paths":[]}`)
+	var r ShakeRequest
+	if err := json.Unmarshal(data, &r); err == nil {
+		t.Error("expected error for empty paths")
+	}
+}
+
+func TestShakeRequestUnmarshalEmptyMode(t *testing.T) {
+	data := []byte(`{"mode":"","paths":[".name"]}`)
+	var r ShakeRequest
+	if err := json.Unmarshal(data, &r); err == nil {
+		t.Error("expected error for empty mode")
+	}
+}
+
+func TestShakePreservesLargeNumbers(t *testing.T) {
+	// 9007199254740993 is 2^53 + 1, beyond float64 exact precision.
+	// json.Number (via dec.UseNumber) preserves the string representation.
+	input := []byte(`{"id":9007199254740993,"name":"big"}`)
+
+	t.Run("include", func(t *testing.T) {
+		out, err := Shake(input, Include("$.id"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != `{"id":9007199254740993}` {
+			t.Errorf("got %s, number may have lost precision", out)
+		}
+	})
+
+	t.Run("exclude", func(t *testing.T) {
+		out, err := Shake(input, Exclude("$.name"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(out) != `{"id":9007199254740993}` {
+			t.Errorf("got %s, number may have lost precision", out)
+		}
+	})
+}

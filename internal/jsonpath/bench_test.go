@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/mibar/tree-shaker/internal/jsonpath/parser"
 )
 
 // --- Helpers ---
@@ -185,10 +187,10 @@ func BenchmarkCompile(b *testing.B) {
 }
 
 func BenchmarkTrieMatch(b *testing.B) {
-	p1, _ := parsePath("$.user.name")
-	p2, _ := parsePath("$.user.email")
-	p3, _ := parsePath("$.*")
-	trie := buildTrie([]*Path{p1, p2, p3})
+	p1, _ := parser.ParsePath("$.user.name")
+	p2, _ := parser.ParsePath("$.user.email")
+	p3, _ := parser.ParsePath("$.*")
+	trie := buildTrie([]*parser.Path{p1, p2, p3})
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -203,10 +205,10 @@ func BenchmarkTrieMatchPremerged(b *testing.B) {
 	// Same setup as BenchmarkTrieMatch but explicitly exercises the pre-merged path.
 	// After finalize(), match() on a node with both names and wildcard should do
 	// a single map lookup with zero allocations.
-	p1, _ := parsePath("$.user.name")
-	p2, _ := parsePath("$.user.email")
-	p3, _ := parsePath("$.*")
-	trie := buildTrie([]*Path{p1, p2, p3})
+	p1, _ := parser.ParsePath("$.user.name")
+	p2, _ := parser.ParsePath("$.user.email")
+	p3, _ := parser.ParsePath("$.*")
+	trie := buildTrie([]*parser.Path{p1, p2, p3})
 
 	// Verify pre-merge was applied.
 	if trie.namesMerged == nil {
@@ -223,10 +225,10 @@ func BenchmarkTrieMatchPremerged(b *testing.B) {
 }
 
 func BenchmarkTrieMatchIndex(b *testing.B) {
-	p1, _ := parsePath("$.items[0].name")
-	p2, _ := parsePath("$.items[*].id")
-	p3, _ := parsePath("$.items[0:10].price")
-	trie := buildTrie([]*Path{p1, p2, p3})
+	p1, _ := parser.ParsePath("$.items[0].name")
+	p2, _ := parser.ParsePath("$.items[*].id")
+	p3, _ := parser.ParsePath("$.items[0:10].price")
+	trie := buildTrie([]*parser.Path{p1, p2, p3})
 
 	itemsTrie := trie.match("items")
 	if itemsTrie == nil {
