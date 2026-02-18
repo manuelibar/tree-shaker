@@ -28,22 +28,7 @@ case "$cmd" in
     go test ./... -bench=. -benchmem -count=3
     ;;
   shake)
-    file="" paths="" mode=""
-    while [[ $# -gt 0 ]]; do
-      case "$1" in
-        -file)   file="$2";   shift 2 ;;
-        -paths)  paths="$2";  shift 2 ;;
-        -mode)   mode="$2";   shift 2 ;;
-        *) echo "unknown flag: $1" >&2; exit 1 ;;
-      esac
-    done
-    [[ -z "$file" || -z "$paths" ]] && {
-      echo "usage: ./run shake -file input.json -paths '\$.name,\$.email' [-mode exclude]" >&2
-      exit 1
-    }
-    args=(-paths "$paths")
-    [[ -n "$mode" ]] && args+=(-mode "$mode")
-    cat "$file" | go run ./cmd/shake "${args[@]}"
+    go run ./cmd/shake "$@"
     ;;
   all)
     go build ./...
@@ -61,10 +46,11 @@ case "$cmd" in
     echo "  clean    go clean ./..."
     echo "  demo     run demo cmd"
     echo "  bench    benchmarks with -benchmem"
-    echo "  shake    run shaker (see below)"
+    echo "  shake    run shaker CLI (flags passed through to cmd/shake)"
     echo "  all      build + vet + test"
     echo ""
     echo "shake usage:"
-    echo "  ./run shake -file input.json -paths '\$.foo,\$.bar' [-mode exclude]"
+    echo "  ./run shake -paths '\$.foo,\$.bar' [-file input.json] [-output out.json] [-mode exclude]"
+    echo "  ./run shake -paths '\$.foo,\$.bar' < input.json"
     ;;
 esac

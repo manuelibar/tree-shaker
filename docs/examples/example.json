@@ -1,0 +1,114 @@
+{
+    "company": "Acme Corp",
+    "founded": 2019,
+    "active": true,
+    "headquarters": {
+        "city": "San Francisco",
+        "state": "CA",
+        "coordinates": {
+            "lat": 37.7749,
+            "lng": -122.4194
+        }
+    },
+    "users": [
+        {
+            "id": 1,
+            "name": "Alice Chen",
+            "email": "alice@acme.io",
+            "password": "$2b$12$LJ3m4ys7Gkx9hR1vKz0sXu",
+            "role": "admin",
+            "profile": {
+                "bio": "Engineering lead with 10 years in distributed systems",
+                "avatar": "https://cdn.acme.io/avatars/alice.png",
+                "settings": {
+                    "theme": "dark",
+                    "notifications": true,
+                    "secret_key": "sk_live_abc123def456"
+                }
+            },
+            "tags": [
+                "engineering",
+                "leadership"
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Bob Martinez",
+            "email": "bob@acme.io",
+            "password": "$2b$12$Xk9pQw2sNt7vB3mYjF8aHe",
+            "role": "viewer",
+            "profile": {
+                "bio": "Product designer focused on accessibility",
+                "avatar": "https://cdn.acme.io/avatars/bob.png",
+                "settings": {
+                    "theme": "light",
+                    "notifications": false,
+                    "secret_key": "sk_live_ghi789jkl012"
+                }
+            },
+            "tags": [
+                "design",
+                "accessibility"
+            ]
+        },
+        {
+            "id": 3,
+            "name": "Carol Nakamura",
+            "email": "carol@acme.io",
+            "password": "$2b$12$Rv5tWm8kAq3yL6nPjD2cUi",
+            "role": "editor",
+            "profile": {
+                "bio": "Data scientist exploring ML-driven UX",
+                "avatar": "https://cdn.acme.io/avatars/carol.png",
+                "settings": {
+                    "theme": "auto",
+                    "notifications": true,
+                    "secret_key": "sk_live_mno345pqr678"
+                }
+            },
+            "tags": [
+                "data",
+                "ml"
+            ]
+        }
+    ],
+    "billing": {
+        "plan": "enterprise",
+        "seats": 50,
+        "payment": {
+            "method": "card",
+            "last4": "4242",
+            "token": "tok_visa_enterprise_9x7w",
+            "expires": "2027-03"
+        },
+        "invoices": [
+            {
+                "id": "INV-001",
+                "amount": 4999,
+                "currency": "USD",
+                "status": "paid",
+                "date": "2025-12-01"
+            },
+            {
+                "id": "INV-002",
+                "amount": 4999,
+                "currency": "USD",
+                "status": "paid",
+                "date": "2026-01-01"
+            },
+            {
+                "id": "INV-003",
+                "amount": 4999,
+                "currency": "USD",
+                "status": "pending",
+                "date": "2026-02-01"
+            }
+        ]
+    },
+    "metadata": {
+        "api_version": "v2",
+        "request_id": "req_8f3a2b1c",
+        "internal_trace_id": "trace-00af-93db-xx12",
+        "generated_at": "2026-02-18T10:30:00Z"
+    }
+}

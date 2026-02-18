@@ -8,6 +8,7 @@ tree-shaker is transport-agnostic. These guides show common integration patterns
 | [🌐 REST Middleware](rest-middleware.md) | Capture HTTP responses and prune fields based on a client-provided shake query |
 | [🤖 MCP Integration](mcp-integration.md) | Prune MCP tool results via `_meta.shake` before returning to the LLM |
 | [🔗 Composition](composition.md) | Layer server policy (strip secrets) and client hints (narrow fields) |
+| [🧠 Writing a SKILL.md](skill-md.md) | Teach an AI agent how to use the `shake` CLI |
 
 ---
 

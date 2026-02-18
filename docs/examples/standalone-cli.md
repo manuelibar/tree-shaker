@@ -22,16 +22,18 @@ go build -o shake ./cmd/shake
 
 ```
 shake -paths <JSONPath,...> [-mode include|exclude]
+      [-file input.json] [-output result.json]
       [-max-depth N] [-max-path-length N] [-max-path-count N]
-      < input.json
 ```
 
-`shake` reads JSON from **stdin** and writes the pruned result to **stdout**.
+`shake` reads JSON from **`-file`** or **stdin** and writes the pruned result to **`-output`** or **stdout**.
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-paths` | *(required)* | Comma-separated JSONPath expressions |
 | `-mode` | `include` | `"include"` keeps only matched fields; `"exclude"` removes them |
+| `-file` | *(stdin)* | Path to input JSON file |
+| `-output` | *(stdout)* | Path to output JSON file |
 | `-max-depth` | `0` (no limit) | Maximum JSON nesting depth (recommended: `1000`) |
 | `-max-path-length` | `0` (no limit) | Maximum byte length per JSONPath expression (recommended: `10000`) |
 | `-max-path-count` | `0` (no limit) | Maximum number of JSONPath expressions (recommended: `1000`) |
@@ -137,26 +139,113 @@ kubectl get deployment my-app -o json | \
 
 ---
 
+## Try It — `example.json` Walkthrough
+
+The repo ships with [`example.json`](example.json), a realistic SaaS payload with nested objects, arrays, and sensitive fields at multiple depths. Every command below uses it.
+
+### 1. Extract company info
+
+```bash
+./run shake -file docs/examples/example.json -paths '$.company,$.founded,$.active'
+```
+
+```json
+{"active":true,"company":"Acme Corp","founded":2019}
+```
+
+### 2. List user names and emails
+
+```bash
+./run shake -file docs/examples/example.json -paths '$.users[*].name,$.users[*].email'
+```
+
+```json
+{"users":[{"email":"alice@acme.io","name":"Alice Chen"},{"email":"bob@acme.io","name":"Bob Martinez"},{"email":"carol@acme.io","name":"Carol Nakamura"}]}
+```
+
+### 3. Strip all sensitive fields (recursive descent)
+
+Passwords, secret keys, and payment tokens live at different depths — `..` catches them all:
+
+```bash
+./run shake -file docs/examples/example.json \
+    -paths '$..password,$..secret_key,$..token,$..internal_trace_id' \
+    -mode exclude
+```
+
+### 4. Extract nested billing summary
+
+```bash
+./run shake -file docs/examples/example.json \
+    -paths '$.billing.plan,$.billing.seats,$.billing.invoices[*].id,$.billing.invoices[*].status'
+```
+
+```json
+{"billing":{"invoices":[{"id":"INV-001","status":"paid"},{"id":"INV-002","status":"paid"},{"id":"INV-003","status":"pending"}],"plan":"enterprise","seats":50}}
+```
+
+### 5. User profiles without settings
+
+```bash
+./run shake -file docs/examples/example.json \
+    -paths '$.users[*].profile.settings' \
+    -mode exclude
+```
+
+### 6. File-to-file — save pruned output
+
+```bash
+./run shake -file docs/examples/example.json \
+    -paths '$.users[*].name,$.users[*].role' \
+    -output /tmp/users-slim.json
+
+cat /tmp/users-slim.json
+```
+
+```json
+{"users":[{"name":"Alice Chen","role":"admin"},{"name":"Bob Martinez","role":"viewer"},{"name":"Carol Nakamura","role":"editor"}]}
+```
+
+### 7. Pipe through `jq` for pretty-printing
+
+```bash
+./run shake -file docs/examples/example.json -paths '$.headquarters' | jq .
+```
+
+```json
+{
+  "headquarters": {
+    "city": "San Francisco",
+    "state": "CA",
+    "coordinates": {
+      "lat": 37.7749,
+      "lng": -122.4194
+    }
+  }
+}
+```
+
+---
+
 ## `./run shake` Helper
 
-The project includes a `./run` script that wraps the CLI with file-based input:
+The project includes a `./run` script that passes all flags through to `cmd/shake`:
 
 ```bash
+# File input → stdout
 ./run shake -file input.json -paths '$.name,$.email'
+
+# File input → file output
+./run shake -file input.json -paths '$.name,$.email' -output result.json
+
+# Exclude mode
 ./run shake -file input.json -paths '$.password,$..secret' -mode exclude
+
+# Stdin still works
+./run shake -paths '$.name' < input.json
 ```
 
-| Flag | Description |
-|------|-------------|
-| `-file` | Path to the JSON file (required) |
-| `-paths` | Comma-separated JSONPath expressions (required) |
-| `-mode` | `"include"` (default) or `"exclude"` (optional) |
-
-Under the hood this is equivalent to:
-
-```bash
-cat input.json | go run ./cmd/shake -paths '$.name,$.email'
-```
+All flags from the [Usage](#usage) table are supported — the wrapper simply runs `go run ./cmd/shake "$@"`.
 
 ---
 

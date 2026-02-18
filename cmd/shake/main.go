@@ -13,19 +13,32 @@ import (
 func main() {
 	mode := flag.String("mode", "include", `"include" or "exclude"`)
 	paths := flag.String("paths", "", "comma-separated JSONPath expressions")
+	file := flag.String("file", "", "path to input JSON file (default: read from stdin)")
+	output := flag.String("output", "", "path to output JSON file (default: write to stdout)")
 	maxDepth := flag.Int("max-depth", 0, fmt.Sprintf("maximum JSON nesting depth (0 = no limit; recommended: %d)", shaker.MaxDepth))
 	maxPathLength := flag.Int("max-path-length", 0, fmt.Sprintf("maximum byte length per JSONPath expression (0 = no limit; recommended: %d)", shaker.MaxPathLength))
 	maxPathCount := flag.Int("max-path-count", 0, fmt.Sprintf("maximum number of JSONPath expressions (0 = no limit; recommended: %d)", shaker.MaxPathCount))
 	flag.Parse()
 
 	if *paths == "" {
-		fmt.Fprintln(os.Stderr, "usage: shake -mode include -paths '$.name,$.email' < input.json")
+		fmt.Fprintln(os.Stderr, "usage: shake -mode include -paths '$.name,$.email' [-file input.json | < input.json] [-output result.json]")
 		os.Exit(1)
 	}
 
-	input, err := io.ReadAll(os.Stdin)
+	var r io.Reader = os.Stdin
+	if *file != "" {
+		f, err := os.Open(*file)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "open file: %v\n", err)
+			os.Exit(1)
+		}
+		defer f.Close()
+		r = f
+	}
+
+	input, err := io.ReadAll(r)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "read stdin: %v\n", err)
+		fmt.Fprintf(os.Stderr, "read input: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -65,5 +78,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println(string(out))
+	if *output != "" {
+		if err := os.WriteFile(*output, append(out, '\n'), 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "write output: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		fmt.Println(string(out))
+	}
 }
