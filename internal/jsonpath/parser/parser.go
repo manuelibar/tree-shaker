@@ -15,10 +15,9 @@ import (
 )
 
 // MaxPathLength is the default maximum allowed byte length of a single JSONPath string.
-// Applied by [jsonpath.DefaultLimits]; ignored when [jsonpath.Limits].MaxPathLength is nil.
-//
-// Oversized paths waste CPU and memory in the parser. Always set a limit
-// when accepting JSONPath expressions from untrusted sources.
+// Applied automatically when [jsonpath.Limits].MaxPathLength is nil (the zero-value
+// default). Oversized paths waste CPU and memory in the parser; this limit is
+// enforced by default to prevent such abuse.
 const MaxPathLength = 10000
 
 // ParseError describes a syntax error encountered while parsing a JSONPath expression.

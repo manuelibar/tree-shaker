@@ -278,8 +278,11 @@ tree-shaker is transport-agnostic. Here are some common integration shapes:
 
 ```bash
 echo '{"name":"John","password":"secret","email":"john@example.com"}' | \
-    go run ./cmd/shake -mode include -paths '$.name,$.email'
-# → {"email":"john@example.com","name":"John"}
+    go run ./cmd/shake -mode include -paths '$.name,$.email' -pretty
+# → {
+#     "email": "john@example.com",
+#     "name": "John"
+#   }
 ```
 
 ---

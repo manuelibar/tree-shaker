@@ -24,6 +24,7 @@ go build -o shake ./cmd/shake
 shake -paths <JSONPath,...> [-mode include|exclude]
       [-file input.json] [-output result.json]
       [-max-depth N] [-max-path-length N] [-max-path-count N]
+      [-pretty]
 ```
 
 `shake` reads JSON from **`-file`** or **stdin** and writes the pruned result to **`-output`** or **stdout**.
@@ -37,6 +38,7 @@ shake -paths <JSONPath,...> [-mode include|exclude]
 | `-max-depth` | `0` (no limit) | Maximum JSON nesting depth (recommended: `1000`) |
 | `-max-path-length` | `0` (no limit) | Maximum byte length per JSONPath expression (recommended: `10000`) |
 | `-max-path-count` | `0` (no limit) | Maximum number of JSONPath expressions (recommended: `1000`) |
+| `-pretty` | `false` | Pretty-print the JSON output with 2-space indentation |
 
 > **⚠️ Safety note:** When no limits are set, `shake` prints a warning to stderr. Always set limits when processing untrusted input to prevent denial-of-service (JSON bombs, stack exhaustion, path flooding).
 
@@ -124,8 +126,7 @@ curl -s https://api.example.com/data | \
 ```bash
 # Fetch → prune → pretty-print
 curl -s https://api.example.com/users/123 | \
-    shake -paths '$.name,$.email' | \
-    jq .
+    shake -paths '$.name,$.email' -pretty
 
 # Prune each line of newline-delimited JSON
 cat events.ndjson | while IFS= read -r line; do
@@ -206,10 +207,12 @@ cat /tmp/users-slim.json
 {"users":[{"name":"Alice Chen","role":"admin"},{"name":"Bob Martinez","role":"viewer"},{"name":"Carol Nakamura","role":"editor"}]}
 ```
 
-### 7. Pipe through `jq` for pretty-printing
+### 7. Pretty-print the output
+
+Use `-pretty` to get human-readable, indented JSON — no need to pipe through `jq`:
 
 ```bash
-./run shake -file docs/examples/example.json -paths '$.headquarters' | jq .
+./run shake -file docs/examples/example.json -paths '$.headquarters' -pretty
 ```
 
 ```json

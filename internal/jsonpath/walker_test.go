@@ -279,16 +279,16 @@ func TestWalkDepthLimit(t *testing.T) {
 	}
 }
 
-func TestWalkNoDepthLimitByDefault(t *testing.T) {
-	// Build a structure deeper than the MaxDepth constant — should succeed
-	// because the default is unrestricted.
+func TestWalkNoDepthLimitWithZeroMaxDepth(t *testing.T) {
+	// A walker with maxDepth=0 imposes no depth limit.
 	inner := map[string]any{"leaf": true}
 	for i := 0; i < MaxDepth+10; i++ {
 		inner = map[string]any{"nested": inner}
 	}
 
 	trie := mustParse(t, "$..leaf")
-	result, err := walkInclude(inner, trie, 0)
+	w := walker{include: true, maxDepth: 0} // 0 = explicitly unrestricted
+	result, err := w.walk(inner, trie, 0)
 	if err != nil {
 		t.Fatalf("unexpected error with unrestricted depth: %v", err)
 	}

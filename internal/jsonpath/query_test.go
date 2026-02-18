@@ -99,16 +99,29 @@ func TestMaxPathCountEnforced(t *testing.T) {
 	}
 }
 
-func TestMaxPathCountUnrestrictedByDefault(t *testing.T) {
-	// Default (no limits) should allow any number of paths.
+func TestMaxPathCountDefaultEnforced(t *testing.T) {
+	// A query with no explicit limits uses MaxPathCount by default.
 	paths := make([]string, MaxPathCount+1)
 	for i := range paths {
 		paths[i] = "$.name"
 	}
 	q := Include(paths...)
 	_, err := q.Compile()
+	if err == nil {
+		t.Error("expected error for exceeding default MaxPathCount")
+	}
+}
+
+func TestMaxPathCountUnrestrictedWithNoLimits(t *testing.T) {
+	// NoLimits explicitly disables the path count check.
+	paths := make([]string, MaxPathCount+1)
+	for i := range paths {
+		paths[i] = "$.name"
+	}
+	q := Include(paths...).WithLimits(NoLimits())
+	_, err := q.Compile()
 	if err != nil {
-		t.Errorf("unexpected error with unrestricted path count: %v", err)
+		t.Errorf("unexpected error with NoLimits: %v", err)
 	}
 }
 

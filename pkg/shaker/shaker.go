@@ -23,37 +23,30 @@
 //	q, err := shaker.Include("$.name").Compile()
 //	out, err := shaker.Shake(doc, q)
 //
-// # Security
+// # Security — Safe by Default
 //
-// By default, shaker imposes no limits on JSON depth, path count, or path
-// length. This is by design: it keeps the library simple for trusted
-// environments where inputs are known to be well-formed.
+// Shaker ships with sensible safety limits enabled out of the box.
+// A zero-value [Limits] (i.e. no call to [Query.WithLimits] at all) enforces:
 //
-// However, when processing untrusted input, the absence of limits exposes
-// your application to several denial-of-service vectors:
+//   - [MaxDepth] (1 000) — prevents stack exhaustion from deeply nested
+//     JSON documents (a.k.a. "JSON bombs").
+//   - [MaxPathLength] (10 000) — caps parser work per JSONPath string,
+//     preventing memory and CPU abuse from oversized expressions.
+//   - [MaxPathCount] (1 000) — bounds trie memory, preventing path-flooding
+//     attacks that submit millions of JSONPath expressions.
 //
-//   - JSON bombs / deeply nested payloads — a document with thousands of
-//     nesting levels causes deep recursion, potentially exhausting the
-//     goroutine stack.
-//   - Path flooding — a query with millions of JSONPath expressions
-//     consumes unbounded memory during trie construction.
-//   - Oversized paths — extremely long JSONPath strings waste CPU and
-//     memory in the parser.
+// You can tighten these limits for your use-case:
 //
-// To mitigate these risks, use [Query.WithLimits] or [DefaultLimits]:
-//
-//	// Apply recommended safe limits.
-//	q := shaker.Include("$.name").WithLimits(shaker.DefaultLimits())
-//
-//	// Or set custom limits for your use-case.
 //	q := shaker.Include("$.name").WithLimits(shaker.Limits{
 //	    MaxDepth:      shaker.Ptr(200),
 //	    MaxPathLength: shaker.Ptr(4096),
 //	    MaxPathCount:  shaker.Ptr(100),
 //	})
 //
-// If you are building an HTTP API or any service that accepts user-supplied
-// JSONPath expressions or JSON documents, always apply limits.
+// To explicitly disable all limits (e.g. in trusted internal pipelines or
+// tests), opt in with [NoLimits]:
+//
+//	q := shaker.Include("$.name").WithLimits(shaker.NoLimits())
 package shaker
 
 import (
@@ -72,10 +65,9 @@ import (
 // All path parse errors are aggregated into a single error via [errors.Join].
 // No partial application occurs — if any path is invalid, the entire operation fails.
 //
-// WARNING: by default, no safety limits are applied. If the query was not
-// configured with [Query.WithLimits], deeply nested documents or adversarial
-// inputs may cause excessive resource consumption. See the package-level
-// Security section and [DefaultLimits].
+// Safety limits ([MaxDepth], [MaxPathLength], [MaxPathCount]) are applied by
+// default. Use [Query.WithLimits] to customise them or [NoLimits] to
+// disable them.
 func Shake(input []byte, q Query) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(input))
 	dec.UseNumber()
@@ -122,16 +114,11 @@ type (
 	DepthError = jsonpath.DepthError
 	// Limits configures safety limits for JSON tree shaking.
 	//
-	// A nil field means "no restriction". This is the zero-value default,
-	// which means a plain [Query] runs without any limits. While convenient
-	// for trusted inputs, this leaves the caller vulnerable to denial-of-service
-	// attacks (JSON bombs, stack exhaustion, memory flooding) when processing
-	// untrusted data. See the package-level Security section for details.
+	// A nil field means "use the default constant" — safe by default.
+	// To explicitly disable a check, set the field to [Ptr](0).
+	// Use [NoLimits] to disable all limits at once.
 	//
-	// Use [DefaultLimits] to obtain a recommended safe baseline, or set
-	// individual fields with [Ptr]:
-	//
-	//	q = q.WithLimits(shaker.Limits{MaxDepth: shaker.Ptr(500)})
+	// See the package-level Security section for details.
 	Limits = jsonpath.Limits
 )
 
@@ -191,17 +178,20 @@ const (
 	MaxPathCount  = jsonpath.MaxPathCount
 )
 
-// DefaultLimits returns the recommended safety limits for untrusted input.
+// DefaultLimits returns the default safety limits with each field set
+// explicitly to its package-level constant. This is equivalent to the
+// zero-value Limits{} but makes the values visible for inspection or logging.
 //
 // Current defaults:
-//   - MaxDepth:      1 000 — prevents stack exhaustion from deeply nested JSON.
-//   - MaxPathLength: 10 000 — caps parser work per JSONPath string.
-//   - MaxPathCount:  1 000 — bounds trie memory for large query sets.
-//
-// Always apply these (or stricter) limits when parsing user-supplied JSON or
-// JSONPath expressions. Omitting limits on untrusted input may allow
-// denial-of-service attacks such as JSON bombs or path flooding.
+//   - MaxDepth:      1 000
+//   - MaxPathLength: 10 000
+//   - MaxPathCount:  1 000
 func DefaultLimits() Limits { return jsonpath.DefaultLimits() }
+
+// NoLimits returns a [Limits] value that explicitly disables all safety
+// checks. Use this only when you fully trust both the JSON input and the
+// JSONPath expressions — for example, in tests or internal pipelines.
+func NoLimits() Limits { return jsonpath.NoLimits() }
 
 // Ptr returns a pointer to v. It is a convenience helper for constructing [Limits]:
 //

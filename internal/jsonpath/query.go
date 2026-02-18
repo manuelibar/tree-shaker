@@ -42,7 +42,7 @@ const (
 )
 
 // MaxPathCount is the default maximum number of JSONPath expressions allowed
-// in a single query. Applied by [DefaultLimits]; ignored when Limits is zero.
+// in a single query. Applied when [Limits].MaxPathCount is nil.
 const MaxPathCount = 1000
 
 type (
@@ -53,28 +53,46 @@ const MaxPathLength = parser.MaxPathLength
 
 // Limits configures safety limits for JSON tree shaking.
 //
-// A nil field means "no restriction". The zero value of Limits is therefore
-// fully unrestricted, which is appropriate for trusted inputs but dangerous
-// for untrusted data (JSON bombs, stack exhaustion, memory flooding).
-// Always set limits when processing external input.
+// A nil field means "use the default constant" ([MaxDepth], [MaxPathLength],
+// or [MaxPathCount]). The zero value of Limits therefore applies sensible
+// defaults — safe by design.
 //
-// Use [DefaultLimits] for a recommended safe baseline.
+// To explicitly disable a limit, set the field to a pointer to 0:
+//
+//	shaker.Limits{MaxDepth: shaker.Ptr(0)} // no depth limit
+//
+// Use [NoLimits] to disable all limits at once.
 type Limits struct {
-	MaxDepth      *int // Maximum JSON nesting depth (nil = unrestricted)
-	MaxPathLength *int // Maximum byte length of a single JSONPath (nil = unrestricted)
-	MaxPathCount  *int // Maximum number of paths in a query (nil = unrestricted)
+	MaxDepth      *int // Maximum JSON nesting depth (nil = MaxDepth default; 0 = no limit)
+	MaxPathLength *int // Maximum byte length of a single JSONPath (nil = MaxPathLength default; 0 = no limit)
+	MaxPathCount  *int // Maximum number of paths in a query (nil = MaxPathCount default; 0 = no limit)
 }
 
 // ptr returns a pointer to v.
 func ptr[T any](v T) *T { return &v }
 
-// DefaultLimits returns the recommended safety limits for untrusted input.
-// Each field is set to its corresponding package-level constant.
+// DefaultLimits returns the default safety limits with each field set
+// explicitly to its package-level constant. This is equivalent to the
+// zero-value Limits{} but makes the values visible for inspection or logging.
 func DefaultLimits() Limits {
 	return Limits{
 		MaxDepth:      ptr(MaxDepth),
 		MaxPathLength: ptr(MaxPathLength),
 		MaxPathCount:  ptr(MaxPathCount),
+	}
+}
+
+// NoLimits returns a Limits value that explicitly disables all safety checks.
+// Use this only when you fully trust both the JSON input and the JSONPath
+// expressions — for example, in tests or internal pipelines.
+//
+// In production code that handles untrusted data, prefer the zero-value
+// Limits{} (which applies sensible defaults) or [DefaultLimits].
+func NoLimits() Limits {
+	return Limits{
+		MaxDepth:      ptr(0),
+		MaxPathLength: ptr(0),
+		MaxPathCount:  ptr(0),
 	}
 }
 
@@ -111,8 +129,8 @@ func (q Query) WithPrefix(prefix string) Query {
 }
 
 // WithLimits returns a copy of the query with the given safety limits.
-// Nil fields in l mean "no restriction". To apply all recommended defaults,
-// pass [DefaultLimits].
+// Nil fields in l fall back to default constants. To disable all limits,
+// pass [NoLimits].
 func (q Query) WithLimits(l Limits) Query {
 	return Query{
 		mode:   q.mode,
@@ -161,9 +179,9 @@ func (q *Query) Walk(tree any) (any, error) {
 	if err := q.compile(); err != nil {
 		return nil, err
 	}
-	var maxDepth int
+	maxDepth := MaxDepth // default when nil
 	if q.limits.MaxDepth != nil {
-		maxDepth = *q.limits.MaxDepth
+		maxDepth = *q.limits.MaxDepth // 0 means no limit
 	}
 	return newWalker(q.mode, maxDepth).walk(tree, q.compiled, 0)
 }
@@ -185,13 +203,21 @@ func (q Query) IsInclude() bool { return q.mode == ModeInclude }
 
 // buildTrie parses all raw paths and builds the trie.
 func (q *Query) buildTrie() (*trieNode, error) {
-	if q.limits.MaxPathCount != nil && len(q.paths) > *q.limits.MaxPathCount {
-		return nil, fmt.Errorf("query exceeds maximum path count of %d", *q.limits.MaxPathCount)
+	maxPathCount := MaxPathCount // default when nil
+	if q.limits.MaxPathCount != nil {
+		maxPathCount = *q.limits.MaxPathCount // 0 means no limit
+	}
+	if maxPathCount > 0 && len(q.paths) > maxPathCount {
+		return nil, fmt.Errorf("query exceeds maximum path count of %d", maxPathCount)
 	}
 
-	var parseOpts []parser.ParseOption
+	maxPathLen := MaxPathLength // default when nil
 	if q.limits.MaxPathLength != nil {
-		parseOpts = append(parseOpts, parser.WithMaxLength(*q.limits.MaxPathLength))
+		maxPathLen = *q.limits.MaxPathLength // 0 means no limit
+	}
+	var parseOpts []parser.ParseOption
+	if maxPathLen > 0 {
+		parseOpts = append(parseOpts, parser.WithMaxLength(maxPathLen))
 	}
 
 	var prefix *parser.Path

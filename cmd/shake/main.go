@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -15,9 +17,10 @@ func main() {
 	paths := flag.String("paths", "", "comma-separated JSONPath expressions")
 	file := flag.String("file", "", "path to input JSON file (default: read from stdin)")
 	output := flag.String("output", "", "path to output JSON file (default: write to stdout)")
-	maxDepth := flag.Int("max-depth", 0, fmt.Sprintf("maximum JSON nesting depth (0 = no limit; recommended: %d)", shaker.MaxDepth))
-	maxPathLength := flag.Int("max-path-length", 0, fmt.Sprintf("maximum byte length per JSONPath expression (0 = no limit; recommended: %d)", shaker.MaxPathLength))
-	maxPathCount := flag.Int("max-path-count", 0, fmt.Sprintf("maximum number of JSONPath expressions (0 = no limit; recommended: %d)", shaker.MaxPathCount))
+	maxDepth := flag.Int("max-depth", 0, fmt.Sprintf("maximum JSON nesting depth (default: %d, -1 = no limit)", shaker.MaxDepth))
+	maxPathLength := flag.Int("max-path-length", 0, fmt.Sprintf("maximum byte length per JSONPath expression (default: %d, -1 = no limit)", shaker.MaxPathLength))
+	maxPathCount := flag.Int("max-path-count", 0, fmt.Sprintf("maximum number of JSONPath expressions (default: %d, -1 = no limit)", shaker.MaxPathCount))
+	pretty := flag.Bool("pretty", false, "pretty-print the JSON output")
 	flag.Parse()
 
 	if *paths == "" {
@@ -55,27 +58,38 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Limits: 0 = use default, >0 = custom, <0 = no limit (Ptr(0)).
 	var limits shaker.Limits
-	if *maxDepth != 0 {
+	if *maxDepth > 0 {
 		limits.MaxDepth = maxDepth
+	} else if *maxDepth < 0 {
+		limits.MaxDepth = shaker.Ptr(0)
 	}
-	if *maxPathLength != 0 {
+	if *maxPathLength > 0 {
 		limits.MaxPathLength = maxPathLength
+	} else if *maxPathLength < 0 {
+		limits.MaxPathLength = shaker.Ptr(0)
 	}
-	if *maxPathCount != 0 {
+	if *maxPathCount > 0 {
 		limits.MaxPathCount = maxPathCount
+	} else if *maxPathCount < 0 {
+		limits.MaxPathCount = shaker.Ptr(0)
 	}
-
-	if limits.MaxDepth == nil && limits.MaxPathLength == nil && limits.MaxPathCount == nil {
-		fmt.Fprintln(os.Stderr, "warning: no safety limits configured; processing untrusted input may allow denial-of-service (JSON bombs, stack exhaustion). Consider setting -max-depth, -max-path-length, and -max-path-count.")
-	}
-
 	q = q.WithLimits(limits)
 
 	out, err := shaker.Shake(input, q)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "shake: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *pretty {
+		var buf bytes.Buffer
+		if err := json.Indent(&buf, out, "", "  "); err != nil {
+			fmt.Fprintf(os.Stderr, "pretty-print: %v\n", err)
+			os.Exit(1)
+		}
+		out = buf.Bytes()
 	}
 
 	if *output != "" {

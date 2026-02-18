@@ -50,10 +50,11 @@ import "fmt"
 // ---------------------------------------------------------------------------
 
 // MaxDepth is the default maximum recursion depth the walker will traverse.
-// Applied by [DefaultLimits]; ignored when [Limits].MaxDepth is nil.
+// Applied automatically when [Limits].MaxDepth is nil (the zero-value default).
 //
-// Deeply nested JSON documents can cause stack exhaustion. Always set a depth
-// limit when processing untrusted input.
+// Deeply nested JSON documents can cause stack exhaustion. This limit is
+// enforced by default to prevent such attacks. To disable it, set
+// [Limits].MaxDepth to Ptr(0) or use [NoLimits].
 const MaxDepth = 1000
 
 // DepthError is returned when the walker exceeds the configured maximum depth.
