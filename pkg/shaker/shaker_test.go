@@ -257,7 +257,7 @@ func TestShakeRequestUnmarshalInclude(t *testing.T) {
 	if err := json.Unmarshal(data, &r); err != nil {
 		t.Fatal(err)
 	}
-	if !r.Query.IsInclude() {
+	if !r.Query().IsInclude() {
 		t.Error("expected include mode")
 	}
 }
@@ -268,7 +268,7 @@ func TestShakeRequestUnmarshalExclude(t *testing.T) {
 	if err := json.Unmarshal(data, &r); err != nil {
 		t.Fatal(err)
 	}
-	if r.Query.IsInclude() {
+	if r.Query().IsInclude() {
 		t.Error("expected exclude mode")
 	}
 }

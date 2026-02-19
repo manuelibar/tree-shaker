@@ -15,7 +15,7 @@ sequenceDiagram
     Client->>Middleware: POST /api/users/123<br/>body: { "shake": { "mode": "include", "paths": ["$.name","$.email"] } }
     Middleware->>Handler: Forward request
     Handler->>Middleware: Full response (all fields)
-    Middleware->>Middleware: shaker.Shake(response, shake.Query)
+    Middleware->>Middleware: shaker.Shake(response, shake.Query())
     Middleware->>Client: Pruned response (name + email only)
 ```
 
@@ -34,7 +34,7 @@ The client embeds a `shake` object in the request body (or any other location yo
 }
 ```
 
-`ShakeRequest` implements `json.Unmarshaler`, so the query is built automatically during decoding.
+`ShakeRequest` implements `json.Unmarshaler` for validation. Call `Query()` to obtain the derived query.
 
 ---
 
@@ -57,7 +57,7 @@ func shakeMiddleware(next http.Handler) http.Handler {
         rec := httptest.NewRecorder()
         next.ServeHTTP(rec, r)
 
-        result, err := shaker.Shake(rec.Body.Bytes(), req.Shake.Query)
+        result, err := shaker.Shake(rec.Body.Bytes(), req.Shake.Query())
         if err != nil {
             http.Error(w, err.Error(), http.StatusBadRequest)
             return

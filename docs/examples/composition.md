@@ -60,7 +60,7 @@ func handleToolCall(params CallToolParams) (json.RawMessage, error) {
 
     // 2. Client hint: optional further pruning
     if params.Meta != nil && params.Meta.Shake != nil {
-        result, err = shaker.Shake(result, params.Meta.Shake.Query)
+        result, err = shaker.Shake(result, params.Meta.Shake.Query())
         if err != nil {
             return nil, err
         }

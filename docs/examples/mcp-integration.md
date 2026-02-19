@@ -15,7 +15,7 @@ sequenceDiagram
     LLM->>MCP: tools/call<br/>_meta.shake = { mode: "include", paths: ["$.name","$.status"] }
     MCP->>Tool: Execute tool
     Tool->>MCP: Full result (50 KB)
-    MCP->>MCP: shaker.Shake(result, meta.Shake.Query)
+    MCP->>MCP: shaker.Shake(result, meta.Shake.Query())
     MCP->>LLM: Pruned result (~200 bytes)
 ```
 
@@ -68,7 +68,7 @@ func handleToolCall(params CallToolParams) (json.RawMessage, error) {
     }
 
     if params.Meta != nil && params.Meta.Shake != nil {
-        result, err = shaker.Shake(result, params.Meta.Shake.Query)
+        result, err = shaker.Shake(result, params.Meta.Shake.Query())
         if err != nil {
             return nil, err
         }

@@ -137,13 +137,13 @@ for _, doc := range documents {
 
 ### Wire format (`ShakeRequest`)
 
-A JSON-serialisable struct for transport over HTTP, MCP, gRPC, or message queues. Implements `json.Unmarshaler` — the query is built automatically on decode.
+A JSON-serialisable struct for transport over HTTP, MCP, gRPC, or message queues. Implements `json.Unmarshaler` for validation. Call `Query()` to obtain the derived query.
 
 ```go
 var req shaker.ShakeRequest
-json.Unmarshal(body, &req) // builds req.Query from Mode + Paths
+json.Unmarshal(body, &req) // validates Mode + Paths
 
-out, err := shaker.Shake(payload, req.Query)
+out, err := shaker.Shake(payload, req.Query())
 ```
 
 ```json

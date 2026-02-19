@@ -101,23 +101,37 @@ func MustShake(input []byte, q Query) []byte {
 // ShakeRequest is a wire-friendly representation of a shake query.
 //
 // Embed it in request types for transport-agnostic JSON field selection.
-// When unmarshalled from JSON, the Query field is automatically populated
-// from Mode and Paths — no extra conversion step is needed.
+// Call [ShakeRequest.Query] to obtain the [Query] derived from Mode and Paths.
 //
 //	type APIRequest struct {
 //	    Payload map[string]any      `json:"payload"`
 //	    Shake   *shaker.ShakeRequest `json:"shake,omitempty"`
 //	}
 type ShakeRequest struct {
-	Query Query    `json:"-"`
 	Mode  string   `json:"mode"`  // "include" or "exclude"
 	Paths []string `json:"paths"` // JSONPath expressions
 }
 
+// Query returns a [Query] derived from Mode and Paths.
+//
+// If Mode is "include", it returns [Include](Paths...).
+// If Mode is "exclude", it returns [Exclude](Paths...).
+// For any other Mode, it returns an empty include query.
+func (r ShakeRequest) Query() Query {
+	switch r.Mode {
+	case "include":
+		return Include(r.Paths...)
+	case "exclude":
+		return Exclude(r.Paths...)
+	default:
+		return Include()
+	}
+}
+
 // UnmarshalJSON implements [json.Unmarshaler].
 //
-// It decodes Mode and Paths from the JSON payload and builds the [Query]
-// automatically. Returns an error if mode is invalid or paths is empty.
+// It decodes Mode and Paths from the JSON payload and validates them.
+// Returns an error if mode is invalid or paths is empty.
 func (r *ShakeRequest) UnmarshalJSON(data []byte) error {
 	// Alias avoids infinite recursion on UnmarshalJSON.
 	type aux ShakeRequest
@@ -133,10 +147,8 @@ func (r *ShakeRequest) UnmarshalJSON(data []byte) error {
 	}
 
 	switch raw.Mode {
-	case "include":
-		raw.Query = Include(raw.Paths...)
-	case "exclude":
-		raw.Query = Exclude(raw.Paths...)
+	case "include", "exclude":
+		// valid
 	default:
 		errs = append(errs, fmt.Errorf("shake request: invalid mode %q (expected \"include\" or \"exclude\")", raw.Mode))
 	}
