@@ -12,6 +12,8 @@ import (
 	"github.com/mibar/tree-shaker/pkg/shaker"
 )
 
+func ptr[T any](v T) *T { return &v }
+
 func main() {
 	mode := flag.String("mode", "include", `"include" or "exclude"`)
 	paths := flag.String("paths", "", "comma-separated JSONPath expressions")
@@ -63,17 +65,17 @@ func main() {
 	if *maxDepth > 0 {
 		limits.MaxDepth = maxDepth
 	} else if *maxDepth < 0 {
-		limits.MaxDepth = shaker.Ptr(0)
+		limits.MaxDepth = ptr(0)
 	}
 	if *maxPathLength > 0 {
 		limits.MaxPathLength = maxPathLength
 	} else if *maxPathLength < 0 {
-		limits.MaxPathLength = shaker.Ptr(0)
+		limits.MaxPathLength = ptr(0)
 	}
 	if *maxPathCount > 0 {
 		limits.MaxPathCount = maxPathCount
 	} else if *maxPathCount < 0 {
-		limits.MaxPathCount = shaker.Ptr(0)
+		limits.MaxPathCount = ptr(0)
 	}
 	q = q.WithLimits(limits)
 

@@ -34,9 +34,9 @@
 // You can tighten these limits for your use-case:
 //
 //	q := shaker.Include("$.name").WithLimits(shaker.Limits{
-//	    MaxDepth:      shaker.Ptr(200),
-//	    MaxPathLength: shaker.Ptr(4096),
-//	    MaxPathCount:  shaker.Ptr(100),
+//	    MaxDepth:      ptr(200),
+//	    MaxPathLength: ptr(4096),
+//	    MaxPathCount:  ptr(100),
 //	})
 //
 // To explicitly disable all limits (e.g. in trusted internal pipelines or
@@ -111,7 +111,7 @@ type (
 	// Limits configures safety limits for JSON tree shaking.
 	//
 	// A nil field means "use the default constant" — safe by default.
-	// To explicitly disable a check, set the field to [Ptr](0).
+	// To explicitly disable a check, set the field to ptr(0).
 	// Use [NoLimits] to disable all limits at once.
 	//
 	// See the package-level Security section for details.
@@ -188,11 +188,6 @@ func DefaultLimits() Limits { return jsonpath.DefaultLimits() }
 // checks. Use this only when you fully trust both the JSON input and the
 // JSONPath expressions — for example, in tests or internal pipelines.
 func NoLimits() Limits { return jsonpath.NoLimits() }
-
-// Ptr returns a pointer to v. It is a convenience helper for constructing [Limits]:
-//
-//	shaker.Limits{MaxDepth: shaker.Ptr(500)}
-func Ptr[T any](v T) *T { return &v }
 
 // Include returns an include-mode [Query] for the given JSONPath expressions.
 func Include(paths ...string) Query { return jsonpath.Include(paths...) }

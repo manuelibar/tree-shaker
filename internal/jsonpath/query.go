@@ -59,7 +59,7 @@ const MaxPathLength = parser.MaxPathLength
 //
 // To explicitly disable a limit, set the field to a pointer to 0:
 //
-//	shaker.Limits{MaxDepth: shaker.Ptr(0)} // no depth limit
+//	shaker.Limits{MaxDepth: ptr(0)} // no depth limit
 //
 // Use [NoLimits] to disable all limits at once.
 type Limits struct {
