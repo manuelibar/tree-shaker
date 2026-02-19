@@ -34,9 +34,9 @@
 // You can tighten these limits for your use-case:
 //
 //	q := shaker.Include("$.name").WithLimits(shaker.Limits{
-//	    MaxDepth:      ptr(200),
-//	    MaxPathLength: ptr(4096),
-//	    MaxPathCount:  ptr(100),
+//	    MaxDepth:      shaker.Ptr(200),
+//	    MaxPathLength: shaker.Ptr(4096),
+//	    MaxPathCount:  shaker.Ptr(100),
 //	})
 //
 // To explicitly disable all limits (e.g. in trusted internal pipelines or
@@ -50,8 +50,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/mibar/tree-shaker/internal/jsonpath"
 )
 
 // Shake prunes the input JSON according to the query.
@@ -99,25 +97,6 @@ func MustShake(input []byte, q Query) []byte {
 	}
 	return out
 }
-
-type (
-	// Query describes a set of JSONPath expressions and a mode (include or exclude).
-	Query = jsonpath.Query
-	// Mode selects between include and exclude behaviour.
-	Mode = jsonpath.Mode
-	// ParseError describes a syntax error in a JSONPath expression.
-	ParseError = jsonpath.ParseError
-	// DepthError is returned when a JSON document exceeds the configured maximum depth.
-	DepthError = jsonpath.DepthError
-	// Limits configures safety limits for JSON tree shaking.
-	//
-	// A nil field means "use the default constant" — safe by default.
-	// To explicitly disable a check, set the field to ptr(0).
-	// Use [NoLimits] to disable all limits at once.
-	//
-	// See the package-level Security section for details.
-	Limits = jsonpath.Limits
-)
 
 // ShakeRequest is a wire-friendly representation of a shake query.
 //
@@ -169,38 +148,3 @@ func (r *ShakeRequest) UnmarshalJSON(data []byte) error {
 	*r = ShakeRequest(raw)
 	return nil
 }
-
-const (
-	ModeInclude = jsonpath.ModeInclude
-	ModeExclude = jsonpath.ModeExclude
-)
-
-const (
-	MaxDepth      = jsonpath.MaxDepth
-	MaxPathLength = jsonpath.MaxPathLength
-	MaxPathCount  = jsonpath.MaxPathCount
-)
-
-// DefaultLimits returns the default safety limits with each field set
-// explicitly to its package-level constant. This is equivalent to the
-// zero-value Limits{} but makes the values visible for inspection or logging.
-//
-// Current defaults:
-//   - MaxDepth:      1 000
-//   - MaxPathLength: 10 000
-//   - MaxPathCount:  1 000
-func DefaultLimits() Limits { return jsonpath.DefaultLimits() }
-
-// NoLimits returns a [Limits] value that explicitly disables all safety
-// checks. Use this only when you fully trust both the JSON input and the
-// JSONPath expressions — for example, in tests or internal pipelines.
-func NoLimits() Limits { return jsonpath.NoLimits() }
-
-// Include returns an include-mode [Query] for the given JSONPath expressions.
-func Include(paths ...string) Query { return jsonpath.Include(paths...) }
-
-// Exclude returns an exclude-mode [Query] for the given JSONPath expressions.
-func Exclude(paths ...string) Query { return jsonpath.Exclude(paths...) }
-
-// MustCompile is like [Query.Compile] but panics on error.
-func MustCompile(q Query) Query { return jsonpath.MustCompile(q) }
