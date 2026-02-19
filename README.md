@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/assets/hero-image.png" alt="tree-shaker — Go gopher shaking a JSON tree" width="100%" />
+</div>
+
 <p align="center">
   <h1 align="center">🌳 tree-shaker</h1>
   <p align="center">
