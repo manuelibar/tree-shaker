@@ -22,33 +22,6 @@ func TestExcludeQuery(t *testing.T) {
 	}
 }
 
-func TestWithPrefix(t *testing.T) {
-	q := Include(".name", ".email").WithPrefix("$.data")
-	if q.prefix != "$.data" {
-		t.Errorf("expected prefix '$.data', got %q", q.prefix)
-	}
-	// Compile and verify paths were scoped
-	compiled, err := q.Compile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if compiled.compiled == nil {
-		t.Error("expected compiled trie")
-	}
-}
-
-func TestWithPrefixAbsolutePath(t *testing.T) {
-	// Absolute paths (starting with $) should not be prefixed
-	q := Include("$.name", ".email").WithPrefix("$.data")
-	compiled, err := q.Compile()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if compiled.compiled == nil {
-		t.Error("expected compiled trie")
-	}
-}
-
 func TestCompileErrors(t *testing.T) {
 	q := Include("$.valid", "$.invalid[", "$[bad")
 	_, err := q.Compile()

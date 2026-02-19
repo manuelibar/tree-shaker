@@ -101,7 +101,6 @@ func NoLimits() Limits {
 type Query struct {
 	mode     Mode
 	paths    []string
-	prefix   string
 	compiled *trieNode // nil until compiled
 	limits   Limits
 }
@@ -116,18 +115,6 @@ func Exclude(paths ...string) Query {
 	return Query{mode: ModeExclude, paths: paths}
 }
 
-// WithPrefix returns a copy of the query with all paths scoped under prefix.
-// Relative paths (starting with ".") are appended to the prefix.
-// Paths starting with "$" are left as-is.
-func (q Query) WithPrefix(prefix string) Query {
-	return Query{
-		mode:   q.mode,
-		paths:  q.paths,
-		prefix: prefix,
-		limits: q.limits,
-	}
-}
-
 // WithLimits returns a copy of the query with the given safety limits.
 // Nil fields in l fall back to default constants. To disable all limits,
 // pass [NoLimits].
@@ -135,7 +122,6 @@ func (q Query) WithLimits(l Limits) Query {
 	return Query{
 		mode:   q.mode,
 		paths:  q.paths,
-		prefix: q.prefix,
 		limits: l,
 	}
 }
@@ -159,7 +145,6 @@ func (q Query) Compile() (Query, error) {
 	return Query{
 		mode:     q.mode,
 		paths:    q.paths,
-		prefix:   q.prefix,
 		compiled: trie,
 		limits:   q.limits,
 	}, nil
@@ -220,15 +205,6 @@ func (q *Query) buildTrie() (*trieNode, error) {
 		parseOpts = append(parseOpts, parser.WithMaxLength(maxPathLen))
 	}
 
-	var prefix *parser.Path
-	if q.prefix != "" {
-		var err error
-		prefix, err = parser.ParsePath(q.prefix, parseOpts...)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var errs []error
 	var paths []*parser.Path
 
@@ -237,10 +213,6 @@ func (q *Query) buildTrie() (*trieNode, error) {
 		if err != nil {
 			errs = append(errs, err)
 			continue
-		}
-		if prefix != nil && !p.IsAbsolute() {
-			scoped := p.Prepend(*prefix)
-			p = &scoped
 		}
 		paths = append(paths, p)
 	}

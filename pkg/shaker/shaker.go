@@ -11,10 +11,6 @@
 //
 //	out, err := shaker.Shake(input, shaker.Include("$.name", "$.address.city"))
 //
-// # Fluent API
-//
-//	out, err := shaker.From(input).Include("$.name", "$.items[*].id").Shake()
-//
 // # Pre-compiled Queries
 //
 // Compile a query once and reuse it across many documents. A compiled [Query]

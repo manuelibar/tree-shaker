@@ -79,25 +79,6 @@ func TestShakeExcludeRecursiveDescent(t *testing.T) {
 	}
 }
 
-func TestShakeWithPrefix(t *testing.T) {
-	input := []byte(`{"data":{"name":"John","age":30},"pagination":{"page":1}}`)
-	q := Include(".name").WithPrefix("$.data")
-	out, err := Shake(input, q)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var result map[string]any
-	json.Unmarshal(out, &result)
-	data := result["data"].(map[string]any)
-	if data["name"] != "John" {
-		t.Error("expected name in data")
-	}
-	if _, ok := data["age"]; ok {
-		t.Error("age should be excluded")
-	}
-}
-
 func TestShakeComposability(t *testing.T) {
 	input := []byte(`{"name":"John","password":"secret","age":30,"email":"john@example.com"}`)
 	// First: exclude password
@@ -256,28 +237,6 @@ func TestShakeNestedArrayWildcard(t *testing.T) {
 		if _, ok := obj["role"]; ok {
 			t.Error("role should be excluded")
 		}
-	}
-}
-
-func TestShakeExcludeWithPrefix(t *testing.T) {
-	input := []byte(`{"data":{"name":"John","password":"secret","email":"john@example.com"},"meta":"kept"}`)
-	q := Exclude(".password", ".email").WithPrefix("$.data")
-	out, err := Shake(input, q)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var result map[string]any
-	json.Unmarshal(out, &result)
-	data := result["data"].(map[string]any)
-	if _, ok := data["password"]; ok {
-		t.Error("password should be excluded")
-	}
-	if _, ok := data["email"]; ok {
-		t.Error("email should be excluded")
-	}
-	if data["name"] != "John" {
-		t.Error("name should be kept")
 	}
 }
 

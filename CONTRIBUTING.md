@@ -37,7 +37,7 @@ signature already tell you, rewrite it or remove the noise.
 |---|---|
 | `// Compile eagerly parses all paths and builds the trie.` | `// Compile compiles the query.` |
 | `// Include returns an include-mode [Query] for the given JSONPath expressions.` | `// Include creates a [Query] that keeps only the matched paths.` |
-| `// IsAbsolute reports whether the path starts with "$".` | `// IsAbsolute checks if the path is absolute.` |
+| `// IsInclude reports whether the query is in include mode.` | `// IsInclude checks the mode.` |
 
 **Rules of thumb:**
 
@@ -48,7 +48,7 @@ signature already tell you, rewrite it or remove the noise.
 4. **No file-name references** — `// builder.go provides…` couples the comment
    to an artifact that may be renamed. Describe the concept, not the file.
 5. **Bool-returning functions** — use `reports whether`:
-   `// IsAbsolute reports whether the path starts with "$".`
+   `// IsInclude reports whether the query is in include mode.`
 6. **Must\* pattern** — `// MustCompile is like [Query.Compile] but panics on error.`
 7. **Re-exports need their own comment** — `go doc` shows the local comment,
    not the one from the aliased package. Keep it minimal but non-redundant.

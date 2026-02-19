@@ -176,10 +176,6 @@ Trading peak memory for simplicity. A streaming tokeniser would improve throughp
 
 Users often construct queries in one place and use them in another. Lazy compilation means `Include("$.name")` is a cheap value copy. Explicit `Compile()` is available when you want to fail fast or guarantee thread safety.
 
-### Why separate Include/Exclude builder types?
-
-The fluent API uses distinct types so the Go compiler prevents mixing modes in the same chain. This is a **compile-time guarantee**, not a runtime check.
-
 ---
 
 ## Component Map
@@ -192,7 +188,6 @@ The fluent API uses distinct types so the Go compiler prevents mixing modes in t
 | **Walker** | Trie-guided traversal that produces the pruned JSON tree |
 | **Query** | Lifecycle manager: create → compile → walk |
 | **Shaker** | Public API: JSON in → JSON out |
-| **Builder** | Fluent API with compile-time mode safety |
 | **ShakeRequest** | Wire format for transport-agnostic integration |
 
 ---

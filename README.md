@@ -115,15 +115,6 @@ out, err := shaker.Shake(json, shaker.Exclude("$.password", "$..secret"))
 out := shaker.MustShake(json, shaker.Include("$.name")) // panics on error
 ```
 
-### Prefix scoping
-
-Scope all paths under a common root. Relative paths (`.name`) are appended; absolute paths (`$.x`) are unchanged.
-
-```go
-q := shaker.Exclude(".password", ".secret").WithPrefix("$.data")
-out, err := shaker.Shake(json, q)
-```
-
 ### Pre-compiled queries
 
 Parse once, reuse across documents. A compiled query is **immutable and safe for concurrent use**.
@@ -138,21 +129,6 @@ for _, doc := range documents {
     out, _ := shaker.Shake(doc, q)
     // ...
 }
-```
-
-### Fluent builder
-
-Type-safe builder that **prevents mixing include and exclude at compile time**:
-
-```go
-out, err := shaker.From(json).
-    Prefix("$.data").
-    Include(".name", ".email").
-    Include(".age").                // chain — adds to the same set
-    Shake()
-
-// WON'T COMPILE — the type system enforces mutual exclusivity:
-// shaker.From(json).Include(".x").Exclude(".y")
 ```
 
 ### Wire format (`ShakeRequest`)
