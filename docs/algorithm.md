@@ -44,11 +44,11 @@ In tree-shaker:
 stateDiagram-v2
     direction LR
     [*] --> root
-    root --> users: key = "users"
+    root --> users: key = #quot;users#quot;
     root --> ANY: key = * (wildcard)
     users --> star: key = * (any index)
-    star --> name_accept: key = "name"
-    star --> email_accept: key = "email"
+    star --> name_accept: key = #quot;name#quot;
+    star --> email_accept: key = #quot;email#quot;
     ANY --> any_accept: ✅
 
     name_accept --> [*]
@@ -125,7 +125,7 @@ stateDiagram-v2
 
     root --> eps: ε (no input consumed)
 
-    eps --> name_accept: key = "name"
+    eps --> name_accept: key = #quot;name#quot;
 
     note right of eps: ε-transition node
     note right of name_accept: ✅ Accepting
