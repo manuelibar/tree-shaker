@@ -48,6 +48,7 @@ package shaker
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/mibar/tree-shaker/internal/jsonpath"
@@ -146,8 +147,10 @@ func (r *ShakeRequest) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	var errs []error
+
 	if len(raw.Paths) == 0 {
-		return fmt.Errorf("shake request: paths must not be empty")
+		errs = append(errs, fmt.Errorf("shake request: paths must not be empty"))
 	}
 
 	switch raw.Mode {
@@ -156,7 +159,11 @@ func (r *ShakeRequest) UnmarshalJSON(data []byte) error {
 	case "exclude":
 		raw.Query = Exclude(raw.Paths...)
 	default:
-		return fmt.Errorf("shake request: invalid mode %q (expected \"include\" or \"exclude\")", raw.Mode)
+		errs = append(errs, fmt.Errorf("shake request: invalid mode %q (expected \"include\" or \"exclude\")", raw.Mode))
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return err
 	}
 
 	*r = ShakeRequest(raw)
