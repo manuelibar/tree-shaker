@@ -11,7 +11,9 @@ import (
 	"github.com/mibar/tree-shaker/pkg/shaker"
 )
 
-const usage = `usage: shake <include|exclude> [flags] <path> [path...]
+const usage = `usage: shake [include|exclude] [flags] <path> [path...]
+
+Mode defaults to "include" if omitted.
 
 Input sources (first match wins):
   -file <path>    Read from file
@@ -19,9 +21,10 @@ Input sources (first match wins):
   (default)       Read from stdin
 
 Examples:
-  shake include -input '{"a":1,"b":2}' '$.a'
-  shake include -file data.json -pretty '$.name' '$.email'
-  curl -s url | shake include '$.data[*].id'`
+  shake '$.api_version'
+  shake -file data.json -pretty '$.name' '$.email'
+  curl -s url | shake '$.data[*].id'
+  kubectl get pods -o json | shake exclude '$..managedFields'`
 
 func main() {
 	if len(os.Args) < 2 {
@@ -29,10 +32,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	mode := os.Args[1]
-	if mode != "include" && mode != "exclude" {
-		fmt.Fprintf(os.Stderr, "invalid mode: %q (expected \"include\" or \"exclude\")\n\n%s\n", mode, usage)
-		os.Exit(1)
+	// Default to include; consume mode arg only if explicitly provided.
+	mode := "include"
+	flagArgs := os.Args[1:]
+	if os.Args[1] == "include" || os.Args[1] == "exclude" {
+		mode = os.Args[1]
+		flagArgs = os.Args[2:]
 	}
 
 	fs := flag.NewFlagSet("shake", flag.ExitOnError)
@@ -44,7 +49,7 @@ func main() {
 	maxPathCount := fs.Int("max-path-count", 0, fmt.Sprintf("maximum number of JSONPath expressions (default: %d, -1 = no limit)", shaker.MaxPathCount))
 	pretty := fs.Bool("pretty", false, "pretty-print the JSON output")
 	fs.Usage = func() { fmt.Fprintln(os.Stderr, usage) }
-	fs.Parse(os.Args[2:])
+	fs.Parse(flagArgs)
 
 	paths := fs.Args()
 	if len(paths) == 0 {
