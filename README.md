@@ -1,13 +1,12 @@
-<div align="center">
-  <img src="docs/assets/hero-image.png" alt="tree-shaker — Go gopher shaking a JSON tree" width="100%" />
-</div>
-
 <p align="center">
   <h1 align="center">🌳 tree-shaker</h1>
   <p align="center">
     <strong>JSON tree shaking for Go</strong><br/>
     Keep what you need. Discard the rest.
   </p>
+  <div align="center">
+    <img src="docs/assets/hero-image.png" alt="tree-shaker — Go gopher shaking a JSON tree" width="100%" />
+  </div>
   <p align="center">
     <a href="https://pkg.go.dev/github.com/mibar/tree-shaker/pkg/shaker">📖 GoDoc</a>&ensp;·&ensp;
     <a href="docs/architecture.md">🏗️ Architecture</a>&ensp;·&ensp;
