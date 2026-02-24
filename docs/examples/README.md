@@ -7,6 +7,7 @@ tree-shaker is transport-agnostic. These guides show common integration patterns
 | [🖥️ Standalone CLI](standalone-cli.md) | Prune JSON from the terminal, shell scripts, or CI pipelines — no Go code required |
 | [🌐 REST Middleware](rest-middleware.md) | Capture HTTP responses and prune fields based on a client-provided shake query |
 | [🤖 MCP Integration](mcp-integration.md) | Prune MCP tool results via `_meta.shake` before returning to the LLM |
+| [🔀 MCP Proxy](mcp-proxy.md) | Wrap any third-party MCP server with filtering — no server changes required |
 | [🔗 Composition](composition.md) | Layer server policy (strip secrets) and client hints (narrow fields) |
 | [🧠 Writing a SKILL.md](skill-md.md) | Teach an AI agent how to use the `shake` CLI |
 
