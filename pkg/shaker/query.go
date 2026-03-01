@@ -1,6 +1,6 @@
 package shaker
 
-import "github.com/mibar/tree-shaker/internal/jsonpath"
+import "github.com/mibar/jsonpath"
 
 type (
 	// Query describes a set of JSONPath expressions and a mode (include or exclude).
