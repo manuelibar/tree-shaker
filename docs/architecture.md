@@ -180,15 +180,15 @@ Users often construct queries in one place and use them in another. Lazy compila
 
 ## Component Map
 
-| Component | Role |
-|-----------|------|
-| **Parser** | Converts JSONPath strings into an AST |
-| **AST** | Intermediate representation of a parsed path (segments + selectors) |
-| **Trie** | Compiled automaton for efficient multi-pattern matching |
-| **Walker** | Trie-guided traversal that produces the pruned JSON tree |
-| **Query** | Lifecycle manager: create → compile → walk |
-| **Shaker** | Public API: JSON in → JSON out |
-| **ShakeRequest** | Wire format for transport-agnostic integration |
+| Component | Role | Location |
+|-----------|------|----------|
+| **Parser** | Converts JSONPath strings into an AST | `github.com/mibar/jsonpath` |
+| **AST** | Intermediate representation of a parsed path (segments + selectors) | `github.com/mibar/jsonpath` |
+| **Trie** | Compiled automaton for efficient multi-pattern matching | `github.com/mibar/jsonpath` |
+| **Walker** | Trie-guided traversal that produces the pruned JSON tree | `github.com/mibar/jsonpath` |
+| **Query** | Lifecycle manager: create → compile → walk | `github.com/mibar/jsonpath` |
+| **Shaker** | Public API: JSON in → JSON out | `pkg/shaker` |
+| **ShakeRequest** | Wire format for transport-agnostic integration | `pkg/shaker` |
 
 ---
 
